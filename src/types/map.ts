@@ -15,6 +15,44 @@ export interface Coordinates {
 }
 
 /**
+ * Calculated route information containing road trajectory, distance, and duration.
+ */
+export interface RouteInfo {
+  /**
+   * Array of coordinates tracing the real road path.
+   */
+  coordinates: Coordinates[];
+  /**
+   * Total road distance in meters.
+   */
+  distanceMeters: number;
+  /**
+   * Total road distance in kilometers.
+   */
+  distanceKm: number;
+  /**
+   * Estimated duration in seconds.
+   */
+  durationSeconds: number;
+  /**
+   * Estimated duration in minutes.
+   */
+  durationMinutes: number;
+  /**
+   * Human-readable duration string (e.g. "2 hr 45 min" or "35 min").
+   */
+  durationFormatted: string;
+  /**
+   * Travel profile used ('driving', 'walking', 'cycling').
+   */
+  profile: 'driving' | 'walking' | 'cycling';
+  /**
+   * Whether this route fell back to a direct line due to network/road unavailability.
+   */
+  isFallback?: boolean;
+}
+
+/**
  * Props for the Map component.
  */
 export interface MapProps {
@@ -44,19 +82,45 @@ export interface MapProps {
   end?: Coordinates;
 
   /**
-   * Whether to display a connecting direct line between the start and end points.
+   * Whether to calculate and display real Google Maps-style turn-by-turn road routing
+   * between the start and end points using OSRM (100% free, zero API keys required).
    * Default: true when both start and end coordinates are provided.
+   */
+  routing?: boolean;
+
+  /**
+   * Travel profile for road routing: 'driving' (default), 'walking', or 'cycling'.
+   * Default: 'driving'
+   */
+  routingProfile?: 'driving' | 'walking' | 'cycling';
+
+  /**
+   * Primary color of the road route polyline (Google Maps blue by default).
+   * Default: "#3b82f6"
+   */
+  routeColor?: string;
+
+  /**
+   * Stroke width in pixels of the road route polyline.
+   * Default: 5
+   */
+  routeWeight?: number;
+
+  /**
+   * Whether to display a direct connecting straight line between the start and end points
+   * (only used if routing={false} or as fallback).
+   * Default: true
    */
   showLine?: boolean;
 
   /**
-   * Color of the connecting line between start and end points.
+   * Color of the straight connecting line (when routing is false).
    * Default: "#2563eb" (Royal Blue)
    */
   lineColor?: string;
 
   /**
-   * Stroke width in pixels of the connecting line.
+   * Stroke width in pixels of the straight connecting line.
    * Default: 3
    */
   lineWeight?: number;
@@ -131,6 +195,12 @@ export interface MapProps {
    * Default: [50, 50]
    */
   fitBoundsPadding?: [number, number];
+
+  /**
+   * Optional callback when real road route is calculated.
+   * Provides distance, duration, and turn-by-turn road coordinates.
+   */
+  onRouteCalculated?: (route: RouteInfo) => void;
 
   /**
    * Optional callback when the map is clicked.

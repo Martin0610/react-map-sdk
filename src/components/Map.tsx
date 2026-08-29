@@ -4,6 +4,7 @@ import type { MapProps } from '../types/map';
 import { validateCoordinates } from '../utils/validation';
 import { calculateInitialCenter, calculateInitialZoom } from '../utils/bounds';
 import { getStartDivIcon, getEndDivIcon } from '../utils/icons';
+import { fetchRoadRoute } from '../utils/routing';
 
 const DEFAULT_TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 const DEFAULT_ATTRIBUTION =
@@ -37,6 +38,10 @@ export const Map: React.FC<MapProps> = ({
   zoom,
   start,
   end,
+  routing = true,
+  routingProfile = 'driving',
+  routeColor = '#3b82f6',
+  routeWeight = 5,
   showLine = true,
   lineColor = '#2563eb',
   lineWeight = 3,
@@ -52,6 +57,7 @@ export const Map: React.FC<MapProps> = ({
   minZoom = 1,
   maxZoom = 19,
   fitBoundsPadding = [50, 50],
+  onRouteCalculated,
   onClick,
   onMapReady
 }) => {
@@ -60,9 +66,16 @@ export const Map: React.FC<MapProps> = ({
   const startMarkerRef = useRef<L.Marker | null>(null);
   const endMarkerRef = useRef<L.Marker | null>(null);
   const polylineRef = useRef<L.Polyline | null>(null);
+  const routeCasingRef = useRef<L.Polyline | null>(null);
+  const routeFillRef = useRef<L.Polyline | null>(null);
   const leafletModuleRef = useRef<typeof L | null>(null);
+  const isRoutingActiveRef = useRef<number>(0);
+
   const onClickRef = useRef(onClick);
   onClickRef.current = onClick;
+
+  const onRouteCalculatedRef = useRef(onRouteCalculated);
+  onRouteCalculatedRef.current = onRouteCalculated;
 
   const [isClient, setIsClient] = useState(false);
 
@@ -117,8 +130,8 @@ export const Map: React.FC<MapProps> = ({
           }
         });
 
-        // Initial render of markers, line, and bounds
-        updateMarkersAndBounds(L, map, true);
+        // Initial render of markers, route, and bounds
+        updateMarkersAndRoute(L, map, true);
 
         if (onMapReady) {
           onMapReady(map);
@@ -139,14 +152,40 @@ export const Map: React.FC<MapProps> = ({
       startMarkerRef.current = null;
       endMarkerRef.current = null;
       polylineRef.current = null;
+      routeCasingRef.current = null;
+      routeFillRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isClient, tileLayerUrl, attribution, minZoom, maxZoom]);
 
   /**
-   * Helper to update markers, connecting line, and auto-fit bounds
+   * Helper to clean up road routing layers
    */
-  const updateMarkersAndBounds = (
+  const clearRoadRoute = (map: L.Map) => {
+    if (routeCasingRef.current) {
+      map.removeLayer(routeCasingRef.current);
+      routeCasingRef.current = null;
+    }
+    if (routeFillRef.current) {
+      map.removeLayer(routeFillRef.current);
+      routeFillRef.current = null;
+    }
+  };
+
+  /**
+   * Helper to clean up straight line layer
+   */
+  const clearDirectLine = (map: L.Map) => {
+    if (polylineRef.current) {
+      map.removeLayer(polylineRef.current);
+      polylineRef.current = null;
+    }
+  };
+
+  /**
+   * Helper to update markers, Google Maps-style road routing, and bounds
+   */
+  const updateMarkersAndRoute = (
     L: typeof import('leaflet'),
     map: L.Map,
     isInitial = false
@@ -205,46 +244,119 @@ export const Map: React.FC<MapProps> = ({
       }
     }
 
-    // 3. Handle Connecting Line between Start and End
     const startValid = Boolean(start && startValidation?.isValid);
     const endValid = Boolean(end && endValidation?.isValid);
 
-    if (startValid && endValid && start && end && showLine) {
-      const lineCoords: [number, number][] = [
-        [start.lat, start.lng],
-        [end.lat, end.lng]
-      ];
-      
-      const effectiveDash = lineDashArray !== undefined 
-        ? lineDashArray 
-        : (lineStyle === 'solid' ? '' : '6, 8');
+    // 3. Handle Route / Line Drawing
+    if (startValid && endValid && start && end) {
+      if (routing) {
+        // Clear any straight line
+        clearDirectLine(map);
 
-      if (polylineRef.current) {
-        polylineRef.current.setLatLngs(lineCoords);
-        polylineRef.current.setStyle({
-          color: lineColor,
-          weight: lineWeight,
-          opacity: lineOpacity,
-          dashArray: effectiveDash || ''
+        const requestId = ++isRoutingActiveRef.current;
+
+        // Fetch turn-by-turn road trajectory
+        fetchRoadRoute(start, end, routingProfile).then((routeInfo) => {
+          if (isRoutingActiveRef.current !== requestId || !mapInstanceRef.current) return;
+
+          const roadLatLngs: [number, number][] = routeInfo.coordinates.map((c) => [c.lat, c.lng]);
+
+          // Layer 1: Google Maps outer dark blue casing for crisp road border
+          if (routeCasingRef.current) {
+            routeCasingRef.current.setLatLngs(roadLatLngs);
+            routeCasingRef.current.setStyle({
+              color: '#1d4ed8',
+              weight: routeWeight + 3,
+              opacity: 0.85
+            });
+          } else {
+            routeCasingRef.current = L.polyline(roadLatLngs, {
+              color: '#1d4ed8',
+              weight: routeWeight + 3,
+              opacity: 0.85,
+              lineCap: 'round',
+              lineJoin: 'round'
+            }).addTo(map);
+          }
+
+          // Layer 2: Google Maps inner vibrant blue road fill
+          if (routeFillRef.current) {
+            routeFillRef.current.setLatLngs(roadLatLngs);
+            routeFillRef.current.setStyle({
+              color: routeColor,
+              weight: routeWeight,
+              opacity: 1
+            });
+          } else {
+            routeFillRef.current = L.polyline(roadLatLngs, {
+              color: routeColor,
+              weight: routeWeight,
+              opacity: 1,
+              lineCap: 'round',
+              lineJoin: 'round'
+            }).addTo(map);
+          }
+
+          if (onRouteCalculatedRef.current) {
+            onRouteCalculatedRef.current(routeInfo);
+          }
+
+          // Auto-fit bounds to the road trajectory
+          if (!center) {
+            const bounds = L.latLngBounds(roadLatLngs);
+            map.fitBounds(bounds, {
+              padding: fitBoundsPadding,
+              maxZoom: 16
+            });
+          }
         });
+      } else if (showLine) {
+        // Fallback: Direct Straight Line
+        clearRoadRoute(map);
+
+        const lineCoords: [number, number][] = [
+          [start.lat, start.lng],
+          [end.lat, end.lng]
+        ];
+
+        const effectiveDash = lineDashArray !== undefined
+          ? lineDashArray
+          : (lineStyle === 'solid' ? '' : '6, 8');
+
+        if (polylineRef.current) {
+          polylineRef.current.setLatLngs(lineCoords);
+          polylineRef.current.setStyle({
+            color: lineColor,
+            weight: lineWeight,
+            opacity: lineOpacity,
+            dashArray: effectiveDash || ''
+          });
+        } else {
+          polylineRef.current = L.polyline(lineCoords, {
+            color: lineColor,
+            weight: lineWeight,
+            opacity: lineOpacity,
+            dashArray: effectiveDash || undefined
+          }).addTo(map);
+        }
+
+        if (!center) {
+          const bounds = L.latLngBounds(lineCoords);
+          map.fitBounds(bounds, {
+            padding: fitBoundsPadding,
+            maxZoom: 16
+          });
+        }
       } else {
-        const line = L.polyline(lineCoords, {
-          color: lineColor,
-          weight: lineWeight,
-          opacity: lineOpacity,
-          dashArray: effectiveDash || undefined
-        }).addTo(map);
-        polylineRef.current = line;
+        clearRoadRoute(map);
+        clearDirectLine(map);
       }
     } else {
-      if (polylineRef.current) {
-        map.removeLayer(polylineRef.current);
-        polylineRef.current = null;
-      }
+      clearRoadRoute(map);
+      clearDirectLine(map);
     }
 
-    // 4. Handle bounds / center adjustment
-    // If explicit center was provided by user, prioritize user center
+    // 4. Handle bounds / center adjustment when not routing
     if (center && validateCoordinates(center, 'center').isValid) {
       if (!isInitial) {
         map.setView([center.lat, center.lng], zoom ?? map.getZoom());
@@ -252,31 +364,23 @@ export const Map: React.FC<MapProps> = ({
       return;
     }
 
-    // If both start and end exist, auto-fit bounds
-    if (startValid && endValid && start && end) {
-      const bounds = L.latLngBounds([
-        [start.lat, start.lng],
-        [end.lat, end.lng]
-      ]);
-      map.fitBounds(bounds, {
-        padding: fitBoundsPadding,
-        maxZoom: 16
-      });
-    } else if (startValid && start && !isInitial) {
-      map.panTo([start.lat, start.lng]);
-    } else if (endValid && end && !isInitial) {
-      map.panTo([end.lat, end.lng]);
+    if ((!startValid || !endValid) && !isInitial) {
+      if (startValid && start) {
+        map.panTo([start.lat, start.lng]);
+      } else if (endValid && end) {
+        map.panTo([end.lat, end.lng]);
+      }
     }
   };
 
-  // Sync prop changes (start, end, center, zoom, line settings) without destroying the map
+  // Sync prop changes without destroying the map
   useEffect(() => {
     const map = mapInstanceRef.current;
     const L = leafletModuleRef.current;
 
     if (!map || !L) return;
 
-    updateMarkersAndBounds(L, map, false);
+    updateMarkersAndRoute(L, map, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     start?.lat,
@@ -286,6 +390,10 @@ export const Map: React.FC<MapProps> = ({
     center?.lat,
     center?.lng,
     zoom,
+    routing,
+    routingProfile,
+    routeColor,
+    routeWeight,
     showLine,
     lineColor,
     lineWeight,

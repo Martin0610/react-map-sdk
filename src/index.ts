@@ -2,7 +2,12 @@
 export { Map } from './components/Map';
 
 // Export Types
-export type { Coordinates, MapProps, ValidationResult } from './types/map';
+export type {
+  Coordinates,
+  MapProps,
+  RouteInfo,
+  ValidationResult
+} from './types/map';
 
 // Export Utilities
 export {
@@ -25,3 +30,9 @@ export {
   createStartPinSvg,
   createEndPinSvg
 } from './utils/icons';
+
+export {
+  fetchRoadRoute,
+  calculateDirectDistance,
+  formatDuration
+} from './utils/routing';

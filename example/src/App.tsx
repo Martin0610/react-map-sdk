@@ -1,5 +1,11 @@
 import React, { useState } from 'react';
-import { Map, type Coordinates, isValidLatitude, isValidLongitude } from 'react-map-sdk';
+import {
+  Map,
+  type Coordinates,
+  type RouteInfo,
+  isValidLatitude,
+  isValidLongitude
+} from 'react-map-sdk';
 import './App.css';
 
 type Mode = 'map-only' | 'start-only' | 'end-only' | 'both';
@@ -14,23 +20,30 @@ interface TourismPreset {
 
 const TOURISM_PRESETS: TourismPreset[] = [
   {
+    name: 'Vellore → Chennai',
+    emoji: '🛕',
+    region: 'NH48 Expressway',
+    start: { lat: 12.9716, lng: 79.1597 },
+    end: { lat: 13.0827, lng: 80.2707 }
+  },
+  {
     name: 'Paris → Nice',
     emoji: '🗼',
-    region: 'French Riviera',
+    region: 'A6 / A7 Autoroute du Soleil',
     start: { lat: 48.8566, lng: 2.3522 },
     end: { lat: 43.7102, lng: 7.262 }
   },
   {
     name: 'Tokyo → Kyoto',
     emoji: '⛩️',
-    region: 'Japan Golden Route',
+    region: 'Tomei Expressway',
     start: { lat: 35.6762, lng: 139.6503 },
     end: { lat: 35.0116, lng: 135.7681 }
   },
   {
     name: 'Rome → Florence',
     emoji: '🏛️',
-    region: 'Tuscan Tour',
+    region: 'Autostrada A1',
     start: { lat: 41.9028, lng: 12.4964 },
     end: { lat: 43.7696, lng: 11.2558 }
   },
@@ -42,16 +55,9 @@ const TOURISM_PRESETS: TourismPreset[] = [
     end: { lat: 24.5551, lng: -81.78 }
   },
   {
-    name: 'Vellore → Chennai',
-    emoji: '🛕',
-    region: 'Tamil Nadu Heritage',
-    start: { lat: 12.9716, lng: 79.1597 },
-    end: { lat: 13.0827, lng: 80.2707 }
-  },
-  {
     name: 'SF → Los Angeles',
     emoji: '🌉',
-    region: 'Pacific Coast',
+    region: 'Pacific Coast Highway',
     start: { lat: 37.7749, lng: -122.4194 },
     end: { lat: 34.0522, lng: -118.2437 }
   }
@@ -59,15 +65,19 @@ const TOURISM_PRESETS: TourismPreset[] = [
 
 export const App: React.FC = () => {
   const [activeMode, setActiveMode] = useState<Mode>('both');
-  const [activePresetIndex, setActivePresetIndex] = useState<number>(4); // Default to Vellore -> Chennai
+  const [activePresetIndex, setActivePresetIndex] = useState<number>(0); // Default to Vellore -> Chennai
   const [copied, setCopied] = useState(false);
 
   // Click placement mode in Start+End mode ('start' or 'end')
   const [clickTarget, setClickTarget] = useState<'start' | 'end'>('start');
 
-  // Line customizer states
-  const [showConnectingLine, setShowConnectingLine] = useState<boolean>(true);
-  const [lineColor, setLineColor] = useState<string>('#2563eb');
+  // Road Routing settings
+  const [enableRoadRouting, setEnableRoadRouting] = useState<boolean>(true);
+  const [travelProfile, setTravelProfile] = useState<'driving' | 'walking' | 'cycling'>('driving');
+  const [routeColor, setRouteColor] = useState<string>('#3b82f6');
+  const [calculatedRoute, setCalculatedRoute] = useState<RouteInfo | null>(null);
+
+  // Fallback straight line customizer
   const [lineStyle, setLineStyle] = useState<'dashed' | 'solid'>('dashed');
 
   // Map Only Mode States
@@ -75,8 +85,8 @@ export const App: React.FC = () => {
   const [zoomLevel, setZoomLevel] = useState<number>(10);
 
   // Start & End Coordinates (defaults to Vellore -> Chennai)
-  const [startPoint, setStartPoint] = useState<Coordinates>(TOURISM_PRESETS[4].start);
-  const [endPoint, setEndPoint] = useState<Coordinates>(TOURISM_PRESETS[4].end);
+  const [startPoint, setStartPoint] = useState<Coordinates>(TOURISM_PRESETS[0].start);
+  const [endPoint, setEndPoint] = useState<Coordinates>(TOURISM_PRESETS[0].end);
 
   const applyPreset = (index: number) => {
     setActivePresetIndex(index);
@@ -173,9 +183,9 @@ export function TravelMap() {
         lat: ${endPoint.lat},
         lng: ${endPoint.lng}
       }}
-      showLine={${showConnectingLine}}
-      lineColor="${lineColor}"
-      lineStyle="${lineStyle}"
+      routing={${enableRoadRouting}}
+      routingProfile="${travelProfile}"
+      routeColor="${routeColor}"
       height="520px"
     />
   );
@@ -225,13 +235,13 @@ export function TravelMap() {
           className={`segment-btn ${activeMode === 'both' ? 'active' : ''}`}
           onClick={() => setActiveMode('both')}
         >
-          📍 4. Start + End Points
+          🛣️ 4. Road Route (Turn-by-Turn)
         </button>
       </div>
 
       {/* Tourism Destination Presets */}
       <div className="presets-section">
-        <span className="presets-label">Destination Presets:</span>
+        <span className="presets-label">Popular Routes:</span>
         {TOURISM_PRESETS.map((preset, index) => (
           <button
             key={preset.name}
@@ -253,8 +263,8 @@ export function TravelMap() {
             {activeMode === 'start-only' && `Click map to place Origin Pin (A)`}
             {activeMode === 'end-only' && `Click map to place Destination Pin (B)`}
             {activeMode === 'both' &&
-              (activePresetIndex >= 0
-                ? `${TOURISM_PRESETS[activePresetIndex].name}`
+              (calculatedRoute
+                ? `${calculatedRoute.profile === 'driving' ? '🚗' : calculatedRoute.profile === 'walking' ? '🚶' : '🚴'} ${calculatedRoute.distanceKm} km • ${calculatedRoute.durationFormatted}`
                 : `Next Click sets: ${clickTarget === 'start' ? '📍 Origin (A)' : '🏁 Destination (B)'}`)}
           </span>
         </div>
@@ -288,9 +298,11 @@ export function TravelMap() {
           <Map
             start={startPoint}
             end={endPoint}
-            showLine={showConnectingLine}
-            lineColor={lineColor}
+            routing={enableRoadRouting}
+            routingProfile={travelProfile}
+            routeColor={routeColor}
             lineStyle={lineStyle}
+            onRouteCalculated={(info) => setCalculatedRoute(info)}
             onClick={handleMapClick}
             height="520px"
           />
@@ -480,15 +492,80 @@ export function TravelMap() {
               <div className="panel-card">
                 <div className="panel-header">
                   <div className="panel-title">
-                    <span style={{ color: '#2563eb', fontSize: '1.1rem' }}>➖</span>
-                    <span>Connecting Line Settings</span>
+                    <span style={{ color: '#3b82f6', fontSize: '1.1rem' }}>🛣️</span>
+                    <span>Google Maps Road Routing</span>
                   </div>
-                  <span className="panel-badge-emerald">Line Options</span>
+                  <span className="panel-badge-emerald">Free OSRM</span>
+                </div>
+
+                {/* Travel Profile Buttons */}
+                <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.75rem' }}>
+                  <button
+                    onClick={() => setTravelProfile('driving')}
+                    style={{
+                      flex: 1,
+                      padding: '0.45rem',
+                      borderRadius: '6px',
+                      border: '1px solid #e2e8f0',
+                      background: travelProfile === 'driving' ? '#2563eb' : '#f8fafc',
+                      color: travelProfile === 'driving' ? '#ffffff' : '#334155',
+                      fontWeight: 600,
+                      fontSize: '0.8rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    🚗 Driving
+                  </button>
+                  <button
+                    onClick={() => setTravelProfile('walking')}
+                    style={{
+                      flex: 1,
+                      padding: '0.45rem',
+                      borderRadius: '6px',
+                      border: '1px solid #e2e8f0',
+                      background: travelProfile === 'walking' ? '#2563eb' : '#f8fafc',
+                      color: travelProfile === 'walking' ? '#ffffff' : '#334155',
+                      fontWeight: 600,
+                      fontSize: '0.8rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    🚶 Walking
+                  </button>
+                  <button
+                    onClick={() => setTravelProfile('cycling')}
+                    style={{
+                      flex: 1,
+                      padding: '0.45rem',
+                      borderRadius: '6px',
+                      border: '1px solid #e2e8f0',
+                      background: travelProfile === 'cycling' ? '#2563eb' : '#f8fafc',
+                      color: travelProfile === 'cycling' ? '#ffffff' : '#334155',
+                      fontWeight: 600,
+                      fontSize: '0.8rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    🚴 Cycling
+                  </button>
                 </div>
 
                 <div className="input-row-grid">
                   <div className="input-box">
-                    <label>Line Style</label>
+                    <label>Route Color</label>
+                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                      <input
+                        type="color"
+                        value={routeColor}
+                        onChange={(e) => setRouteColor(e.target.value)}
+                        style={{ width: '38px', height: '34px', padding: '0', cursor: 'pointer', border: '1px solid #e2e8f0', borderRadius: '6px' }}
+                      />
+                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>{routeColor}</span>
+                    </div>
+                  </div>
+
+                  <div className="input-box">
+                    <label>Straight Line Style (if routing off)</label>
                     <select
                       value={lineStyle}
                       onChange={(e) => setLineStyle(e.target.value as 'dashed' | 'solid')}
@@ -500,21 +577,9 @@ export function TravelMap() {
                         fontSize: '0.875rem'
                       }}
                     >
-                      <option value="dashed">Dashed Flight Line</option>
-                      <option value="solid">Solid Direct Line</option>
+                      <option value="dashed">Dashed Line</option>
+                      <option value="solid">Solid Line</option>
                     </select>
-                  </div>
-                  <div className="input-box">
-                    <label>Line Color</label>
-                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                      <input
-                        type="color"
-                        value={lineColor}
-                        onChange={(e) => setLineColor(e.target.value)}
-                        style={{ width: '38px', height: '34px', padding: '0', cursor: 'pointer', border: '1px solid #e2e8f0', borderRadius: '6px' }}
-                      />
-                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>{lineColor}</span>
-                    </div>
                   </div>
                 </div>
 
@@ -522,11 +587,11 @@ export function TravelMap() {
                   <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.825rem', color: '#334155' }}>
                     <input
                       type="checkbox"
-                      checked={showConnectingLine}
-                      onChange={(e) => setShowConnectingLine(e.target.checked)}
+                      checked={enableRoadRouting}
+                      onChange={(e) => setEnableRoadRouting(e.target.checked)}
                       style={{ accentColor: '#2563eb' }}
                     />
-                    Display connecting line on map
+                    Enable Google Maps Road Following (Turn-by-Turn)
                   </label>
                 </div>
               </div>
