@@ -2,29 +2,23 @@ import React, { useState } from 'react';
 import {
   Map,
   type Coordinates,
-  type RouteInfo,
-  isValidLatitude,
-  isValidLongitude
+  type RouteInfo
 } from 'react-map-sdk';
 import './App.css';
 
 type Mode = 'map-only' | 'start-only' | 'end-only' | 'both';
 
-interface TourismPreset {
+interface RoutePreset {
   name: string;
-  emoji: string;
-  region: string;
   startName: string;
   endName: string;
   start: Coordinates;
   end: Coordinates;
 }
 
-const TOURISM_PRESETS: TourismPreset[] = [
+const PRESETS: RoutePreset[] = [
   {
     name: 'Vellore → Chennai',
-    emoji: '🛕',
-    region: 'NH48 Expressway',
     startName: 'Vellore',
     endName: 'Chennai',
     start: { lat: 12.9716, lng: 79.1597 },
@@ -32,8 +26,6 @@ const TOURISM_PRESETS: TourismPreset[] = [
   },
   {
     name: 'Paris → Nice',
-    emoji: '🗼',
-    region: 'A6 / A7 Autoroute du Soleil',
     startName: 'Paris',
     endName: 'Nice',
     start: { lat: 48.8566, lng: 2.3522 },
@@ -41,8 +33,6 @@ const TOURISM_PRESETS: TourismPreset[] = [
   },
   {
     name: 'Tokyo → Kyoto',
-    emoji: '⛩️',
-    region: 'Tomei Expressway',
     startName: 'Tokyo',
     endName: 'Kyoto',
     start: { lat: 35.6762, lng: 139.6503 },
@@ -50,8 +40,6 @@ const TOURISM_PRESETS: TourismPreset[] = [
   },
   {
     name: 'Rome → Florence',
-    emoji: '🏛️',
-    region: 'Autostrada A1',
     startName: 'Rome',
     endName: 'Florence',
     start: { lat: 41.9028, lng: 12.4964 },
@@ -59,8 +47,6 @@ const TOURISM_PRESETS: TourismPreset[] = [
   },
   {
     name: 'Miami → Key West',
-    emoji: '🏖️',
-    region: 'Overseas Highway',
     startName: 'Miami',
     endName: 'Key West',
     start: { lat: 25.7617, lng: -80.1918 },
@@ -68,8 +54,6 @@ const TOURISM_PRESETS: TourismPreset[] = [
   },
   {
     name: 'SF → Los Angeles',
-    emoji: '🌉',
-    region: 'Pacific Coast Highway',
     startName: 'San Francisco',
     endName: 'Los Angeles',
     start: { lat: 37.7749, lng: -122.4194 },
@@ -78,42 +62,40 @@ const TOURISM_PRESETS: TourismPreset[] = [
 ];
 
 export const App: React.FC = () => {
-  const [activeMode, setActiveMode] = useState<Mode>('both');
-  const [activePresetIndex, setActivePresetIndex] = useState<number>(0); // Default to Vellore -> Chennai
+  const [mode, setMode] = useState<Mode>('both');
+  const [activePreset, setActivePreset] = useState<number>(0);
   const [copied, setCopied] = useState(false);
+  const [showCode, setShowCode] = useState(false);
 
-  // Click placement mode in Start+End mode ('start' or 'end')
+  // Target indicator when clicking on map ('start' or 'end')
   const [clickTarget, setClickTarget] = useState<'start' | 'end'>('start');
 
   // Location Names
-  const [startLocationName, setStartLocationName] = useState<string>(TOURISM_PRESETS[0].startName);
-  const [endLocationName, setEndLocationName] = useState<string>(TOURISM_PRESETS[0].endName);
+  const [startName, setStartName] = useState<string>(PRESETS[0].startName);
+  const [endName, setEndName] = useState<string>(PRESETS[0].endName);
 
-  // Road Routing settings
-  const [enableRoadRouting, setEnableRoadRouting] = useState<boolean>(true);
-  const [travelProfile, setTravelProfile] = useState<'driving' | 'walking' | 'cycling'>('driving');
+  // Routing settings
+  const [routing, setRouting] = useState<boolean>(true);
+  const [profile, setProfile] = useState<'driving' | 'walking' | 'cycling'>('driving');
   const [routeColor, setRouteColor] = useState<string>('#3b82f6');
-  const [calculatedRoute, setCalculatedRoute] = useState<RouteInfo | null>(null);
+  const [routeInfo, setRouteInfo] = useState<RouteInfo | null>(null);
 
-  // Fallback straight line customizer
-  const [lineStyle, setLineStyle] = useState<'dashed' | 'solid'>('dashed');
-
-  // Map Only Mode States
+  // Map Only Mode State
   const [centerCoords, setCenterCoords] = useState<Coordinates>({ lat: 12.9716, lng: 79.1597 });
-  const [zoomLevel, setZoomLevel] = useState<number>(10);
+  const [zoom, setZoom] = useState<number>(10);
 
-  // Start & End Coordinates (defaults to Vellore -> Chennai)
-  const [startPoint, setStartPoint] = useState<Coordinates>(TOURISM_PRESETS[0].start);
-  const [endPoint, setEndPoint] = useState<Coordinates>(TOURISM_PRESETS[0].end);
+  // Start & End Coordinates
+  const [start, setStart] = useState<Coordinates>(PRESETS[0].start);
+  const [end, setEnd] = useState<Coordinates>(PRESETS[0].end);
 
   const applyPreset = (index: number) => {
-    setActivePresetIndex(index);
-    const preset = TOURISM_PRESETS[index];
-    setStartPoint(preset.start);
-    setEndPoint(preset.end);
-    setStartLocationName(preset.startName);
-    setEndLocationName(preset.endName);
-    setCenterCoords(preset.start);
+    setActivePreset(index);
+    const p = PRESETS[index];
+    setStart(p.start);
+    setEnd(p.end);
+    setStartName(p.startName);
+    setEndName(p.endName);
+    setCenterCoords(p.start);
   };
 
   const handleMapClick = (coords: Coordinates) => {
@@ -122,572 +104,348 @@ export const App: React.FC = () => {
       lng: parseFloat(coords.lng.toFixed(4))
     };
 
-    if (activeMode === 'map-only') {
+    if (mode === 'map-only') {
       setCenterCoords(rounded);
-    } else if (activeMode === 'start-only') {
-      setStartPoint(rounded);
-      setStartLocationName(`Custom (${rounded.lat}, ${rounded.lng})`);
-      setActivePresetIndex(-1);
-    } else if (activeMode === 'end-only') {
-      setEndPoint(rounded);
-      setEndLocationName(`Custom (${rounded.lat}, ${rounded.lng})`);
-      setActivePresetIndex(-1);
-    } else if (activeMode === 'both') {
+    } else if (mode === 'start-only') {
+      setStart(rounded);
+      setStartName(`Point (${rounded.lat}, ${rounded.lng})`);
+      setActivePreset(-1);
+    } else if (mode === 'end-only') {
+      setEnd(rounded);
+      setEndName(`Point (${rounded.lat}, ${rounded.lng})`);
+      setActivePreset(-1);
+    } else if (mode === 'both') {
       if (clickTarget === 'start') {
-        setStartPoint(rounded);
-        setStartLocationName(`Custom (${rounded.lat}, ${rounded.lng})`);
+        setStart(rounded);
+        setStartName(`Point (${rounded.lat}, ${rounded.lng})`);
         setClickTarget('end');
       } else {
-        setEndPoint(rounded);
-        setEndLocationName(`Custom (${rounded.lat}, ${rounded.lng})`);
+        setEnd(rounded);
+        setEndName(`Point (${rounded.lat}, ${rounded.lng})`);
         setClickTarget('start');
       }
-      setActivePresetIndex(-1);
+      setActivePreset(-1);
     }
   };
-
-  const isStartValid = isValidLatitude(startPoint.lat) && isValidLongitude(startPoint.lng);
-  const isEndValid = isValidLatitude(endPoint.lat) && isValidLongitude(endPoint.lng);
-  const isCenterValid = isValidLatitude(centerCoords.lat) && isValidLongitude(centerCoords.lng);
 
   const getCodeSnippet = () => {
-    switch (activeMode) {
-      case 'map-only':
-        return `import { Map } from "react-map-sdk";
-
-export function TravelMap() {
-  return (
-    <Map
-      center={{ lat: ${centerCoords.lat}, lng: ${centerCoords.lng} }}
-      zoom={${zoomLevel}}
-      height="520px"
-    />
-  );
-}`;
-      case 'start-only':
-        return `import { Map } from "react-map-sdk";
-
-export function TravelMap() {
-  return (
-    <Map
-      start={{
-        lat: ${startPoint.lat},
-        lng: ${startPoint.lng}
-      }}
-      startName="${startLocationName}"
-      height="520px"
-    />
-  );
-}`;
-      case 'end-only':
-        return `import { Map } from "react-map-sdk";
-
-export function TravelMap() {
-  return (
-    <Map
-      end={{
-        lat: ${endPoint.lat},
-        lng: ${endPoint.lng}
-      }}
-      endName="${endLocationName}"
-      height="520px"
-    />
-  );
-}`;
-      case 'both':
-      default:
-        return `import { Map } from "react-map-sdk";
-
-export function TravelMap() {
-  return (
-    <Map
-      start={{
-        lat: ${startPoint.lat},
-        lng: ${startPoint.lng}
-      }}
-      startName="${startLocationName}"
-      end={{
-        lat: ${endPoint.lat},
-        lng: ${endPoint.lng}
-      }}
-      endName="${endLocationName}"
-      routing={${enableRoadRouting}}
-      routingProfile="${travelProfile}"
-      routeColor="${routeColor}"
-      height="520px"
-    />
-  );
-}`;
+    if (mode === 'map-only') {
+      return `<Map center={{ lat: ${centerCoords.lat}, lng: ${centerCoords.lng} }} zoom={${zoom}} height="520px" />`;
     }
+    if (mode === 'start-only') {
+      return `<Map start={{ lat: ${start.lat}, lng: ${start.lng} }} startName="${startName}" height="520px" />`;
+    }
+    if (mode === 'end-only') {
+      return `<Map end={{ lat: ${end.lat}, lng: ${end.lng} }} endName="${endName}" height="520px" />`;
+    }
+    return `<Map\n  start={{ lat: ${start.lat}, lng: ${start.lng} }}\n  startName="${startName}"\n  end={{ lat: ${end.lat}, lng: ${end.lng} }}\n  endName="${endName}"\n  routing={${routing}}\n  routingProfile="${profile}"\n  routeColor="${routeColor}"\n  height="520px"\n/>`;
   };
 
-  const handleCopyCode = () => {
+  const handleCopy = () => {
     navigator.clipboard.writeText(getCodeSnippet());
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div className="travel-app">
-      {/* Minimalist Top Navbar */}
-      <header className="navbar">
-        <div className="brand-section">
-          <div className="brand-icon">🗺️</div>
-          <div>
-            <h1 className="brand-title">React Map SDK</h1>
-          </div>
+    <div className="minimal-app">
+      {/* Top Header */}
+      <header className="top-header">
+        <div className="brand-title">
+          <span>🗺️</span>
+          <span>React Map SDK</span>
         </div>
+        <a
+          href="https://github.com/Martin0610/react-map-sdk"
+          target="_blank"
+          rel="noreferrer"
+          className="github-link"
+        >
+          GitHub ↗
+        </a>
       </header>
 
-      {/* Segmented Mode Bar */}
-      <div className="mode-segmented-bar">
+      {/* Mode Switcher */}
+      <div className="segmented-nav">
         <button
-          className={`segment-btn ${activeMode === 'map-only' ? 'active' : ''}`}
-          onClick={() => setActiveMode('map-only')}
+          className={`seg-btn ${mode === 'map-only' ? 'active' : ''}`}
+          onClick={() => setMode('map-only')}
         >
-          🗺️ 1. Map View
+          Map
         </button>
         <button
-          className={`segment-btn ${activeMode === 'start-only' ? 'active' : ''}`}
-          onClick={() => setActiveMode('start-only')}
+          className={`seg-btn ${mode === 'start-only' ? 'active' : ''}`}
+          onClick={() => setMode('start-only')}
         >
-          🟢 2. Starting Point (A)
+          Origin (A)
         </button>
         <button
-          className={`segment-btn ${activeMode === 'end-only' ? 'active' : ''}`}
-          onClick={() => setActiveMode('end-only')}
+          className={`seg-btn ${mode === 'end-only' ? 'active' : ''}`}
+          onClick={() => setMode('end-only')}
         >
-          🔴 3. Destination Point (B)
+          Destination (B)
         </button>
         <button
-          className={`segment-btn ${activeMode === 'both' ? 'active' : ''}`}
-          onClick={() => setActiveMode('both')}
+          className={`seg-btn ${mode === 'both' ? 'active' : ''}`}
+          onClick={() => setMode('both')}
         >
-          🛣️ 4. Route & ETA
+          Route & ETA
         </button>
       </div>
 
-      {/* Tourism Destination Presets */}
-      <div className="presets-section">
-        <span className="presets-label">Popular Routes:</span>
-        {TOURISM_PRESETS.map((preset, index) => (
+      {/* Preset Quick Chips */}
+      <div className="presets-bar">
+        {PRESETS.map((p, idx) => (
           <button
-            key={preset.name}
-            className={`preset-chip ${activePresetIndex === index ? 'active' : ''}`}
-            onClick={() => applyPreset(index)}
+            key={p.name}
+            className={`preset-chip-btn ${activePreset === idx ? 'active' : ''}`}
+            onClick={() => applyPreset(idx)}
           >
-            <span>{preset.emoji}</span>
-            <span>{preset.name}</span>
+            {p.name}
           </button>
         ))}
       </div>
 
-      {/* Main Map Frame */}
-      <div className="map-canvas-card">
-        <div className="map-top-overlay">
+      {/* Map Card */}
+      <div className="map-frame-card">
+        <div className="map-floating-overlay">
           <span className="status-dot"></span>
           <span>
-            {activeMode === 'map-only' && `Map View • Click map to re-center`}
-            {activeMode === 'start-only' && `Origin: ${startLocationName} (${startPoint.lat.toFixed(2)}, ${startPoint.lng.toFixed(2)})`}
-            {activeMode === 'end-only' && `Destination: ${endLocationName} (${endPoint.lat.toFixed(2)}, ${endPoint.lng.toFixed(2)})`}
-            {activeMode === 'both' &&
-              (calculatedRoute
-                ? `${startLocationName} → ${endLocationName} • ${calculatedRoute.profile === 'driving' ? '🚗' : calculatedRoute.profile === 'walking' ? '🚶' : '🚴'} ${calculatedRoute.distanceKm} km • ${calculatedRoute.durationFormatted}`
-                : `Next Click sets: ${clickTarget === 'start' ? '📍 Origin (A)' : '🏁 Destination (B)'}`)}
+            {mode === 'map-only' && `Zoom ${zoom} • Click to center`}
+            {mode === 'start-only' && `${startName}`}
+            {mode === 'end-only' && `${endName}`}
+            {mode === 'both' &&
+              (routeInfo
+                ? `${startName} → ${endName} • ${profile === 'driving' ? '🚗' : profile === 'walking' ? '🚶' : '🚴'} ${routeInfo.durationFormatted} (${routeInfo.distanceKm} km)`
+                : `Next click sets ${clickTarget === 'start' ? 'Origin' : 'Destination'}`)}
           </span>
         </div>
 
-        {activeMode === 'map-only' && (
-          <Map
-            center={centerCoords}
-            zoom={zoomLevel}
-            onClick={handleMapClick}
-            height="520px"
-          />
+        {mode === 'map-only' && (
+          <Map center={centerCoords} zoom={zoom} onClick={handleMapClick} height="520px" />
         )}
-
-        {activeMode === 'start-only' && (
-          <Map
-            start={startPoint}
-            startName={startLocationName}
-            onClick={handleMapClick}
-            height="520px"
-          />
+        {mode === 'start-only' && (
+          <Map start={start} startName={startName} onClick={handleMapClick} height="520px" />
         )}
-
-        {activeMode === 'end-only' && (
-          <Map
-            end={endPoint}
-            endName={endLocationName}
-            onClick={handleMapClick}
-            height="520px"
-          />
+        {mode === 'end-only' && (
+          <Map end={end} endName={endName} onClick={handleMapClick} height="520px" />
         )}
-
-        {activeMode === 'both' && (
+        {mode === 'both' && (
           <Map
-            start={startPoint}
-            startName={startLocationName}
-            end={endPoint}
-            endName={endLocationName}
-            routing={enableRoadRouting}
-            routingProfile={travelProfile}
+            start={start}
+            startName={startName}
+            end={end}
+            endName={endName}
+            routing={routing}
+            routingProfile={profile}
             routeColor={routeColor}
-            lineStyle={lineStyle}
-            onRouteCalculated={(info) => setCalculatedRoute(info)}
+            onRouteCalculated={(info) => setRouteInfo(info)}
             onClick={handleMapClick}
             height="520px"
           />
         )}
       </div>
 
-      {/* Controls & Coordinates Panel */}
-      <div className="dashboard-grid">
-        {activeMode === 'map-only' ? (
-          <div className="panel-card">
-            <div className="panel-header">
-              <div className="panel-title">
-                <span>🌐</span>
-                <span>Map Center & Zoom</span>
-              </div>
-              <span className="panel-badge-emerald">Live Control</span>
+      {/* Minimal Unified Controls */}
+      <div className="control-grid">
+        {mode === 'map-only' ? (
+          <div className="sub-card">
+            <div className="card-title-row">
+              <span className="card-title-text">Center & Zoom</span>
             </div>
-
-            <div className="input-row-grid">
-              <div className="input-box">
-                <label>Center Latitude</label>
+            <div className="coords-row field-group">
+              <div>
+                <label>Latitude</label>
                 <input
                   type="number"
                   step="0.0001"
+                  className="field-input"
                   value={centerCoords.lat}
-                  onChange={(e) => {
-                    setCenterCoords((prev) => ({ ...prev, lat: parseFloat(e.target.value) || 0 }));
-                    setActivePresetIndex(-1);
-                  }}
+                  onChange={(e) => setCenterCoords((c) => ({ ...c, lat: parseFloat(e.target.value) || 0 }))}
                 />
               </div>
-              <div className="input-box">
-                <label>Center Longitude</label>
+              <div>
+                <label>Longitude</label>
                 <input
                   type="number"
                   step="0.0001"
+                  className="field-input"
                   value={centerCoords.lng}
-                  onChange={(e) => {
-                    setCenterCoords((prev) => ({ ...prev, lng: parseFloat(e.target.value) || 0 }));
-                    setActivePresetIndex(-1);
-                  }}
+                  onChange={(e) => setCenterCoords((c) => ({ ...c, lng: parseFloat(e.target.value) || 0 }))}
                 />
               </div>
             </div>
-
-            <div className="input-box" style={{ marginTop: '0.75rem' }}>
-              <label>Zoom Level ({zoomLevel})</label>
-              <div className="zoom-slider-container">
-                <span style={{ fontSize: '0.8rem', color: '#64748b' }}>2</span>
-                <input
-                  type="range"
-                  min="2"
-                  max="18"
-                  value={zoomLevel}
-                  onChange={(e) => setZoomLevel(parseInt(e.target.value, 10))}
-                  className="zoom-slider"
-                />
-                <span style={{ fontSize: '0.8rem', color: '#64748b' }}>18</span>
-              </div>
-            </div>
-
-            <div className={`val-status ${isCenterValid ? 'val-valid' : 'val-invalid'}`}>
-              {isCenterValid ? '✓ Click map or type custom coordinates' : '⚠️ Latitude must be [-90, 90], Longitude [-180, 180]'}
+            <div className="field-group">
+              <label>Zoom ({zoom})</label>
+              <input
+                type="range"
+                min="2"
+                max="18"
+                style={{ width: '100%', accentColor: '#2563eb' }}
+                value={zoom}
+                onChange={(e) => setZoom(parseInt(e.target.value, 10))}
+              />
             </div>
           </div>
         ) : (
           <>
-            {(activeMode === 'start-only' || activeMode === 'both') && (
-              <div className="panel-card">
-                <div className="panel-header">
-                  <div className="panel-title">
-                    <span style={{ color: '#059669', fontSize: '1.1rem' }}>📍</span>
-                    <span>Origin (A): {startLocationName}</span>
+            {/* Origin & Destination Card */}
+            <div className="sub-card">
+              {(mode === 'start-only' || mode === 'both') && (
+                <div style={{ marginBottom: mode === 'both' ? '1.25rem' : '0' }}>
+                  <div className="card-title-row">
+                    <span className="card-title-text" style={{ color: '#059669' }}>
+                      📍 Origin (A)
+                    </span>
+                    {mode === 'both' && (
+                      <button
+                        className="target-badge-btn target-badge-emerald"
+                        onClick={() => setClickTarget('start')}
+                      >
+                        {clickTarget === 'start' ? '🎯 Active Click Target' : 'Set Click Target'}
+                      </button>
+                    )}
                   </div>
-                  {activeMode === 'both' && (
-                    <button
-                      onClick={() => setClickTarget('start')}
-                      style={{
-                        padding: '2px 8px',
-                        borderRadius: '6px',
-                        border: '1px solid #059669',
-                        background: clickTarget === 'start' ? '#059669' : '#ecfdf5',
-                        color: clickTarget === 'start' ? '#ffffff' : '#059669',
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {clickTarget === 'start' ? '🎯 Click Target' : 'Set Target'}
-                    </button>
-                  )}
-                </div>
-
-                <div className="input-box" style={{ marginBottom: '0.65rem' }}>
-                  <label>Location / City Name</label>
-                  <input
-                    type="text"
-                    value={startLocationName}
-                    placeholder="e.g. Vellore"
-                    onChange={(e) => setStartLocationName(e.target.value)}
-                  />
-                </div>
-
-                <div className="input-row-grid">
-                  <div className="input-box">
-                    <label>Latitude (-90 to 90)</label>
+                  <div className="field-group">
+                    <input
+                      type="text"
+                      className="field-input"
+                      value={startName}
+                      placeholder="Origin Name"
+                      onChange={(e) => setStartName(e.target.value)}
+                    />
+                  </div>
+                  <div className="coords-row field-group">
                     <input
                       type="number"
                       step="0.0001"
-                      value={startPoint.lat}
-                      onChange={(e) => {
-                        setStartPoint((prev) => ({ ...prev, lat: parseFloat(e.target.value) || 0 }));
-                        setActivePresetIndex(-1);
-                      }}
+                      className="field-input"
+                      value={start.lat}
+                      onChange={(e) => setStart((s) => ({ ...s, lat: parseFloat(e.target.value) || 0 }))}
                     />
-                  </div>
-                  <div className="input-box">
-                    <label>Longitude (-180 to 180)</label>
                     <input
                       type="number"
                       step="0.0001"
-                      value={startPoint.lng}
-                      onChange={(e) => {
-                        setStartPoint((prev) => ({ ...prev, lng: parseFloat(e.target.value) || 0 }));
-                        setActivePresetIndex(-1);
-                      }}
+                      className="field-input"
+                      value={start.lng}
+                      onChange={(e) => setStart((s) => ({ ...s, lng: parseFloat(e.target.value) || 0 }))}
                     />
                   </div>
                 </div>
+              )}
 
-                <div className={`val-status ${isStartValid ? 'val-valid' : 'val-invalid'}`}>
-                  {isStartValid ? '✓ Click map or type custom coordinates' : '⚠️ Invalid latitude or longitude range'}
-                </div>
-              </div>
-            )}
-
-            {(activeMode === 'end-only' || activeMode === 'both') && (
-              <div className="panel-card">
-                <div className="panel-header">
-                  <div className="panel-title">
-                    <span style={{ color: '#e11d48', fontSize: '1.1rem' }}>🏁</span>
-                    <span>Destination (B): {endLocationName}</span>
+              {(mode === 'end-only' || mode === 'both') && (
+                <div>
+                  <div className="card-title-row">
+                    <span className="card-title-text" style={{ color: '#e11d48' }}>
+                      🏁 Destination (B)
+                    </span>
+                    {mode === 'both' && (
+                      <button
+                        className="target-badge-btn target-badge-rose"
+                        onClick={() => setClickTarget('end')}
+                      >
+                        {clickTarget === 'end' ? '🎯 Active Click Target' : 'Set Click Target'}
+                      </button>
+                    )}
                   </div>
-                  {activeMode === 'both' && (
-                    <button
-                      onClick={() => setClickTarget('end')}
-                      style={{
-                        padding: '2px 8px',
-                        borderRadius: '6px',
-                        border: '1px solid #e11d48',
-                        background: clickTarget === 'end' ? '#e11d48' : '#fff1f2',
-                        color: clickTarget === 'end' ? '#ffffff' : '#e11d48',
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {clickTarget === 'end' ? '🎯 Click Target' : 'Set Target'}
-                    </button>
-                  )}
-                </div>
-
-                <div className="input-box" style={{ marginBottom: '0.65rem' }}>
-                  <label>Location / City Name</label>
-                  <input
-                    type="text"
-                    value={endLocationName}
-                    placeholder="e.g. Chennai"
-                    onChange={(e) => setEndLocationName(e.target.value)}
-                  />
-                </div>
-
-                <div className="input-row-grid">
-                  <div className="input-box">
-                    <label>Latitude (-90 to 90)</label>
+                  <div className="field-group">
+                    <input
+                      type="text"
+                      className="field-input"
+                      value={endName}
+                      placeholder="Destination Name"
+                      onChange={(e) => setEndName(e.target.value)}
+                    />
+                  </div>
+                  <div className="coords-row field-group">
                     <input
                       type="number"
                       step="0.0001"
-                      value={endPoint.lat}
-                      onChange={(e) => {
-                        setEndPoint((prev) => ({ ...prev, lat: parseFloat(e.target.value) || 0 }));
-                        setActivePresetIndex(-1);
-                      }}
+                      className="field-input"
+                      value={end.lat}
+                      onChange={(e) => setEnd((s) => ({ ...s, lat: parseFloat(e.target.value) || 0 }))}
                     />
-                  </div>
-                  <div className="input-box">
-                    <label>Longitude (-180 to 180)</label>
                     <input
                       type="number"
                       step="0.0001"
-                      value={endPoint.lng}
-                      onChange={(e) => {
-                        setEndPoint((prev) => ({ ...prev, lng: parseFloat(e.target.value) || 0 }));
-                        setActivePresetIndex(-1);
-                      }}
+                      className="field-input"
+                      value={end.lng}
+                      onChange={(e) => setEnd((s) => ({ ...s, lng: parseFloat(e.target.value) || 0 }))}
                     />
                   </div>
                 </div>
+              )}
+            </div>
 
-                <div className={`val-status ${isEndValid ? 'val-valid' : 'val-invalid'}`}>
-                  {isEndValid ? '✓ Click map or type custom coordinates' : '⚠️ Invalid latitude or longitude range'}
-                </div>
-              </div>
-            )}
-
-            {activeMode === 'both' && (
-              <div className="panel-card">
-                <div className="panel-header">
-                  <div className="panel-title">
-                    <span style={{ color: '#3b82f6', fontSize: '1.1rem' }}>🛣️</span>
-                    <span>Route & ETA</span>
-                  </div>
-                  <span className="panel-badge-emerald">Live ETA</span>
+            {/* Route & ETA Panel */}
+            {mode === 'both' && (
+              <div className="sub-card">
+                <div className="card-title-row">
+                  <span className="card-title-text">Route & ETA</span>
                 </div>
 
-                {/* Real-time ETA & Distance Metrics Box */}
-                {calculatedRoute && (
-                  <div
-                    style={{
-                      background: '#eff6ff',
-                      border: '1px solid #bfdbfe',
-                      borderRadius: '8px',
-                      padding: '0.75rem 1rem',
-                      marginBottom: '0.85rem',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      flexWrap: 'wrap',
-                      gap: '0.5rem'
-                    }}
-                  >
+                {/* ETA Metric Widget */}
+                {routeInfo && (
+                  <div className="eta-metric-box">
                     <div>
-                      <div style={{ fontSize: '0.75rem', color: '#1e40af', fontWeight: 600 }}>
-                        ESTIMATED TIME (ETA)
-                      </div>
-                      <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1d4ed8' }}>
-                        {calculatedRoute.durationFormatted}
-                      </div>
+                      <div className="eta-item-label">ETA</div>
+                      <div className="eta-item-value">{routeInfo.durationFormatted}</div>
                     </div>
                     <div>
-                      <div style={{ fontSize: '0.75rem', color: '#1e40af', fontWeight: 600 }}>
-                        TOTAL DISTANCE
-                      </div>
-                      <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1d4ed8' }}>
-                        {calculatedRoute.distanceKm} km
-                      </div>
+                      <div className="eta-item-label">Distance</div>
+                      <div className="eta-item-value">{routeInfo.distanceKm} km</div>
                     </div>
                     <div>
-                      <div style={{ fontSize: '0.75rem', color: '#1e40af', fontWeight: 600 }}>
-                        EST. ARRIVAL
-                      </div>
-                      <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#2563eb' }}>
-                        ~ {new Date(Date.now() + calculatedRoute.durationSeconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      <div className="eta-item-label">Arrival</div>
+                      <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#1e3a8a' }}>
+                        ~ {new Date(Date.now() + routeInfo.durationSeconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </div>
                     </div>
                   </div>
                 )}
 
                 {/* Travel Profile Selector */}
-                <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.75rem' }}>
+                <div className="profile-btn-group">
                   <button
-                    onClick={() => setTravelProfile('driving')}
-                    style={{
-                      flex: 1,
-                      padding: '0.45rem',
-                      borderRadius: '6px',
-                      border: '1px solid #e2e8f0',
-                      background: travelProfile === 'driving' ? '#2563eb' : '#f8fafc',
-                      color: travelProfile === 'driving' ? '#ffffff' : '#334155',
-                      fontWeight: 600,
-                      fontSize: '0.8rem',
-                      cursor: 'pointer'
-                    }}
+                    className={`profile-btn ${profile === 'driving' ? 'active' : ''}`}
+                    onClick={() => setProfile('driving')}
                   >
                     🚗 Driving
                   </button>
                   <button
-                    onClick={() => setTravelProfile('walking')}
-                    style={{
-                      flex: 1,
-                      padding: '0.45rem',
-                      borderRadius: '6px',
-                      border: '1px solid #e2e8f0',
-                      background: travelProfile === 'walking' ? '#2563eb' : '#f8fafc',
-                      color: travelProfile === 'walking' ? '#ffffff' : '#334155',
-                      fontWeight: 600,
-                      fontSize: '0.8rem',
-                      cursor: 'pointer'
-                    }}
+                    className={`profile-btn ${profile === 'walking' ? 'active' : ''}`}
+                    onClick={() => setProfile('walking')}
                   >
                     🚶 Walking
                   </button>
                   <button
-                    onClick={() => setTravelProfile('cycling')}
-                    style={{
-                      flex: 1,
-                      padding: '0.45rem',
-                      borderRadius: '6px',
-                      border: '1px solid #e2e8f0',
-                      background: travelProfile === 'cycling' ? '#2563eb' : '#f8fafc',
-                      color: travelProfile === 'cycling' ? '#ffffff' : '#334155',
-                      fontWeight: 600,
-                      fontSize: '0.8rem',
-                      cursor: 'pointer'
-                    }}
+                    className={`profile-btn ${profile === 'cycling' ? 'active' : ''}`}
+                    onClick={() => setProfile('cycling')}
                   >
                     🚴 Cycling
                   </button>
                 </div>
 
-                <div className="input-row-grid">
-                  <div className="input-box">
-                    <label>Route Color</label>
-                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                      <input
-                        type="color"
-                        value={routeColor}
-                        onChange={(e) => setRouteColor(e.target.value)}
-                        style={{ width: '38px', height: '34px', padding: '0', cursor: 'pointer', border: '1px solid #e2e8f0', borderRadius: '6px' }}
-                      />
-                      <span style={{ fontSize: '0.8rem', color: '#64748b' }}>{routeColor}</span>
-                    </div>
-                  </div>
-
-                  <div className="input-box">
-                    <label>Straight Line Fallback</label>
-                    <select
-                      value={lineStyle}
-                      onChange={(e) => setLineStyle(e.target.value as 'dashed' | 'solid')}
-                      style={{
-                        padding: '0.5rem 0.65rem',
-                        background: '#f8fafc',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '6px',
-                        fontSize: '0.875rem'
-                      }}
-                    >
-                      <option value="dashed">Dashed Line</option>
-                      <option value="solid">Solid Line</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div style={{ marginTop: '0.6rem' }}>
-                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.825rem', color: '#334155' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.75rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', cursor: 'pointer' }}>
                     <input
                       type="checkbox"
-                      checked={enableRoadRouting}
-                      onChange={(e) => setEnableRoadRouting(e.target.checked)}
+                      checked={routing}
+                      onChange={(e) => setRouting(e.target.checked)}
                       style={{ accentColor: '#2563eb' }}
                     />
-                    Enable turn-by-turn road route
+                    Road Routing
                   </label>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <input
+                      type="color"
+                      value={routeColor}
+                      onChange={(e) => setRouteColor(e.target.value)}
+                      style={{ width: '28px', height: '28px', border: 'none', borderRadius: '4px', cursor: 'pointer', background: 'transparent' }}
+                    />
+                  </div>
                 </div>
               </div>
             )}
@@ -695,15 +453,20 @@ export function TravelMap() {
         )}
       </div>
 
-      {/* Code Snippet Box */}
-      <div className="code-preview-card">
-        <div className="code-header">
-          <span className="code-header-title">React Integration Code</span>
-          <button className="copy-btn" onClick={handleCopyCode}>
-            {copied ? '✓ Copied!' : 'Copy Code'}
-          </button>
+      {/* Minimal Collapsible Code View */}
+      <div className="code-accordion">
+        <div className="code-accordion-header">
+          <span className="code-title">React Component Code</span>
+          <div style={{ display: 'flex', gap: '0.4rem' }}>
+            <button className="btn-copy" onClick={() => setShowCode(!showCode)}>
+              {showCode ? 'Hide Code' : 'View Code'}
+            </button>
+            <button className="btn-copy" onClick={handleCopy}>
+              {copied ? '✓ Copied' : 'Copy JSX'}
+            </button>
+          </div>
         </div>
-        <pre className="code-pre">{getCodeSnippet()}</pre>
+        {showCode && <pre className="code-body">{getCodeSnippet()}</pre>}
       </div>
     </div>
   );
