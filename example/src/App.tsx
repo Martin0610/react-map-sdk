@@ -235,7 +235,7 @@ export function TravelMap() {
           className={`segment-btn ${activeMode === 'both' ? 'active' : ''}`}
           onClick={() => setActiveMode('both')}
         >
-          🛣️ 4. Road Route (Turn-by-Turn)
+          🛣️ 4. Route & ETA
         </button>
       </div>
 
@@ -493,12 +493,55 @@ export function TravelMap() {
                 <div className="panel-header">
                   <div className="panel-title">
                     <span style={{ color: '#3b82f6', fontSize: '1.1rem' }}>🛣️</span>
-                    <span>Google Maps Road Routing</span>
+                    <span>Route & ETA</span>
                   </div>
-                  <span className="panel-badge-emerald">Free OSRM</span>
+                  <span className="panel-badge-emerald">Live ETA</span>
                 </div>
 
-                {/* Travel Profile Buttons */}
+                {/* Real-time ETA & Distance Metrics Box */}
+                {calculatedRoute && (
+                  <div
+                    style={{
+                      background: '#eff6ff',
+                      border: '1px solid #bfdbfe',
+                      borderRadius: '8px',
+                      padding: '0.75rem 1rem',
+                      marginBottom: '0.85rem',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: '0.5rem'
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: '0.75rem', color: '#1e40af', fontWeight: 600 }}>
+                        ESTIMATED TIME (ETA)
+                      </div>
+                      <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1d4ed8' }}>
+                        {calculatedRoute.durationFormatted}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.75rem', color: '#1e40af', fontWeight: 600 }}>
+                        TOTAL DISTANCE
+                      </div>
+                      <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1d4ed8' }}>
+                        {calculatedRoute.distanceKm} km
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.75rem', color: '#1e40af', fontWeight: 600 }}>
+                        EST. ARRIVAL
+                      </div>
+                      <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#2563eb' }}>
+                        ~ {new Date(Date.now() + calculatedRoute.durationSeconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Travel Profile Selector */}
                 <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.75rem' }}>
                   <button
                     onClick={() => setTravelProfile('driving')}
@@ -565,7 +608,7 @@ export function TravelMap() {
                   </div>
 
                   <div className="input-box">
-                    <label>Straight Line Style (if routing off)</label>
+                    <label>Straight Line Fallback</label>
                     <select
                       value={lineStyle}
                       onChange={(e) => setLineStyle(e.target.value as 'dashed' | 'solid')}
@@ -591,7 +634,7 @@ export function TravelMap() {
                       onChange={(e) => setEnableRoadRouting(e.target.checked)}
                       style={{ accentColor: '#2563eb' }}
                     />
-                    Enable Google Maps Road Following (Turn-by-Turn)
+                    Enable turn-by-turn road route
                   </label>
                 </div>
               </div>
