@@ -155,14 +155,6 @@ export const App: React.FC = () => {
           <span>🗺️</span>
           <span>React Map SDK</span>
         </div>
-        <a
-          href="https://github.com/Martin0610/react-map-sdk"
-          target="_blank"
-          rel="noreferrer"
-          className="github-link"
-        >
-          GitHub ↗
-        </a>
       </header>
 
       {/* Mode Switcher */}
