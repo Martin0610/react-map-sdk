@@ -35,7 +35,8 @@ export async function fetchRoadRoute(
     return routeCache.get(cacheKey)!;
   }
 
-  const url = `https://router.project-osrm.org/route/v1/${profile}/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`;
+  // OSRM public server provides 'driving' road trajectory
+  const url = `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`;
 
   try {
     const controller = new AbortController();
@@ -64,8 +65,18 @@ export async function fetchRoadRoute(
     }));
 
     const distanceMeters = primaryRoute.distance;
-    const durationSeconds = primaryRoute.duration;
     const distanceKm = parseFloat((distanceMeters / 1000).toFixed(1));
+
+    // Dynamic duration calculation based on travel profile
+    let durationSeconds = primaryRoute.duration;
+    if (profile === 'walking') {
+      // Average walking speed: 4.8 km/h = 1.333 m/s
+      durationSeconds = Math.round(distanceMeters / 1.333);
+    } else if (profile === 'cycling') {
+      // Average cycling speed: 16 km/h = 4.444 m/s
+      durationSeconds = Math.round(distanceMeters / 4.444);
+    }
+
     const durationMinutes = Math.round(durationSeconds / 60);
     const durationFormatted = formatDuration(durationSeconds);
 
@@ -86,15 +97,21 @@ export async function fetchRoadRoute(
     // Fallback: direct line between start and end
     const directDistanceMeters = calculateDirectDistance(start, end);
     const distanceKm = parseFloat((directDistanceMeters / 1000).toFixed(1));
-    const estimatedSeconds = Math.round((distanceKm / 60) * 3600); // approx 60 km/h
+
+    let durationSeconds = Math.round((distanceKm / 60) * 3600); // approx 60 km/h driving
+    if (profile === 'walking') {
+      durationSeconds = Math.round(directDistanceMeters / 1.333);
+    } else if (profile === 'cycling') {
+      durationSeconds = Math.round(directDistanceMeters / 4.444);
+    }
 
     const fallbackRoute: RouteInfo = {
       coordinates: [start, end],
       distanceMeters: directDistanceMeters,
       distanceKm,
-      durationSeconds: estimatedSeconds,
-      durationMinutes: Math.round(estimatedSeconds / 60),
-      durationFormatted: formatDuration(estimatedSeconds),
+      durationSeconds,
+      durationMinutes: Math.round(durationSeconds / 60),
+      durationFormatted: formatDuration(durationSeconds),
       profile,
       isFallback: true
     };

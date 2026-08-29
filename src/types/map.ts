@@ -76,10 +76,22 @@ export interface MapProps {
   start?: Coordinates;
 
   /**
+   * Optional custom name or label for the Starting point (e.g. "Vellore Fort").
+   * Displayed on the map marker popup and tooltip.
+   */
+  startName?: string;
+
+  /**
    * Ending point coordinates.
    * Renders a clearly distinguished End marker on the map.
    */
   end?: Coordinates;
+
+  /**
+   * Optional custom name or label for the Ending point (e.g. "Chennai Central").
+   * Displayed on the map marker popup and tooltip.
+   */
+  endName?: string;
 
   /**
    * Whether to calculate and display real Google Maps-style turn-by-turn road routing

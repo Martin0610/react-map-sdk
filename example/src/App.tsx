@@ -14,6 +14,8 @@ interface TourismPreset {
   name: string;
   emoji: string;
   region: string;
+  startName: string;
+  endName: string;
   start: Coordinates;
   end: Coordinates;
 }
@@ -23,6 +25,8 @@ const TOURISM_PRESETS: TourismPreset[] = [
     name: 'Vellore → Chennai',
     emoji: '🛕',
     region: 'NH48 Expressway',
+    startName: 'Vellore',
+    endName: 'Chennai',
     start: { lat: 12.9716, lng: 79.1597 },
     end: { lat: 13.0827, lng: 80.2707 }
   },
@@ -30,6 +34,8 @@ const TOURISM_PRESETS: TourismPreset[] = [
     name: 'Paris → Nice',
     emoji: '🗼',
     region: 'A6 / A7 Autoroute du Soleil',
+    startName: 'Paris',
+    endName: 'Nice',
     start: { lat: 48.8566, lng: 2.3522 },
     end: { lat: 43.7102, lng: 7.262 }
   },
@@ -37,6 +43,8 @@ const TOURISM_PRESETS: TourismPreset[] = [
     name: 'Tokyo → Kyoto',
     emoji: '⛩️',
     region: 'Tomei Expressway',
+    startName: 'Tokyo',
+    endName: 'Kyoto',
     start: { lat: 35.6762, lng: 139.6503 },
     end: { lat: 35.0116, lng: 135.7681 }
   },
@@ -44,6 +52,8 @@ const TOURISM_PRESETS: TourismPreset[] = [
     name: 'Rome → Florence',
     emoji: '🏛️',
     region: 'Autostrada A1',
+    startName: 'Rome',
+    endName: 'Florence',
     start: { lat: 41.9028, lng: 12.4964 },
     end: { lat: 43.7696, lng: 11.2558 }
   },
@@ -51,6 +61,8 @@ const TOURISM_PRESETS: TourismPreset[] = [
     name: 'Miami → Key West',
     emoji: '🏖️',
     region: 'Overseas Highway',
+    startName: 'Miami',
+    endName: 'Key West',
     start: { lat: 25.7617, lng: -80.1918 },
     end: { lat: 24.5551, lng: -81.78 }
   },
@@ -58,6 +70,8 @@ const TOURISM_PRESETS: TourismPreset[] = [
     name: 'SF → Los Angeles',
     emoji: '🌉',
     region: 'Pacific Coast Highway',
+    startName: 'San Francisco',
+    endName: 'Los Angeles',
     start: { lat: 37.7749, lng: -122.4194 },
     end: { lat: 34.0522, lng: -118.2437 }
   }
@@ -70,6 +84,10 @@ export const App: React.FC = () => {
 
   // Click placement mode in Start+End mode ('start' or 'end')
   const [clickTarget, setClickTarget] = useState<'start' | 'end'>('start');
+
+  // Location Names
+  const [startLocationName, setStartLocationName] = useState<string>(TOURISM_PRESETS[0].startName);
+  const [endLocationName, setEndLocationName] = useState<string>(TOURISM_PRESETS[0].endName);
 
   // Road Routing settings
   const [enableRoadRouting, setEnableRoadRouting] = useState<boolean>(true);
@@ -93,6 +111,8 @@ export const App: React.FC = () => {
     const preset = TOURISM_PRESETS[index];
     setStartPoint(preset.start);
     setEndPoint(preset.end);
+    setStartLocationName(preset.startName);
+    setEndLocationName(preset.endName);
     setCenterCoords(preset.start);
   };
 
@@ -106,16 +126,20 @@ export const App: React.FC = () => {
       setCenterCoords(rounded);
     } else if (activeMode === 'start-only') {
       setStartPoint(rounded);
+      setStartLocationName(`Custom (${rounded.lat}, ${rounded.lng})`);
       setActivePresetIndex(-1);
     } else if (activeMode === 'end-only') {
       setEndPoint(rounded);
+      setEndLocationName(`Custom (${rounded.lat}, ${rounded.lng})`);
       setActivePresetIndex(-1);
     } else if (activeMode === 'both') {
       if (clickTarget === 'start') {
         setStartPoint(rounded);
+        setStartLocationName(`Custom (${rounded.lat}, ${rounded.lng})`);
         setClickTarget('end');
       } else {
         setEndPoint(rounded);
+        setEndLocationName(`Custom (${rounded.lat}, ${rounded.lng})`);
         setClickTarget('start');
       }
       setActivePresetIndex(-1);
@@ -150,6 +174,7 @@ export function TravelMap() {
         lat: ${startPoint.lat},
         lng: ${startPoint.lng}
       }}
+      startName="${startLocationName}"
       height="520px"
     />
   );
@@ -164,6 +189,7 @@ export function TravelMap() {
         lat: ${endPoint.lat},
         lng: ${endPoint.lng}
       }}
+      endName="${endLocationName}"
       height="520px"
     />
   );
@@ -179,10 +205,12 @@ export function TravelMap() {
         lat: ${startPoint.lat},
         lng: ${startPoint.lng}
       }}
+      startName="${startLocationName}"
       end={{
         lat: ${endPoint.lat},
         lng: ${endPoint.lng}
       }}
+      endName="${endLocationName}"
       routing={${enableRoadRouting}}
       routingProfile="${travelProfile}"
       routeColor="${routeColor}"
@@ -260,11 +288,11 @@ export function TravelMap() {
           <span className="status-dot"></span>
           <span>
             {activeMode === 'map-only' && `Map View • Click map to re-center`}
-            {activeMode === 'start-only' && `Click map to place Origin Pin (A)`}
-            {activeMode === 'end-only' && `Click map to place Destination Pin (B)`}
+            {activeMode === 'start-only' && `Origin: ${startLocationName} (${startPoint.lat.toFixed(2)}, ${startPoint.lng.toFixed(2)})`}
+            {activeMode === 'end-only' && `Destination: ${endLocationName} (${endPoint.lat.toFixed(2)}, ${endPoint.lng.toFixed(2)})`}
             {activeMode === 'both' &&
               (calculatedRoute
-                ? `${calculatedRoute.profile === 'driving' ? '🚗' : calculatedRoute.profile === 'walking' ? '🚶' : '🚴'} ${calculatedRoute.distanceKm} km • ${calculatedRoute.durationFormatted}`
+                ? `${startLocationName} → ${endLocationName} • ${calculatedRoute.profile === 'driving' ? '🚗' : calculatedRoute.profile === 'walking' ? '🚶' : '🚴'} ${calculatedRoute.distanceKm} km • ${calculatedRoute.durationFormatted}`
                 : `Next Click sets: ${clickTarget === 'start' ? '📍 Origin (A)' : '🏁 Destination (B)'}`)}
           </span>
         </div>
@@ -281,6 +309,7 @@ export function TravelMap() {
         {activeMode === 'start-only' && (
           <Map
             start={startPoint}
+            startName={startLocationName}
             onClick={handleMapClick}
             height="520px"
           />
@@ -289,6 +318,7 @@ export function TravelMap() {
         {activeMode === 'end-only' && (
           <Map
             end={endPoint}
+            endName={endLocationName}
             onClick={handleMapClick}
             height="520px"
           />
@@ -297,7 +327,9 @@ export function TravelMap() {
         {activeMode === 'both' && (
           <Map
             start={startPoint}
+            startName={startLocationName}
             end={endPoint}
+            endName={endLocationName}
             routing={enableRoadRouting}
             routingProfile={travelProfile}
             routeColor={routeColor}
@@ -375,7 +407,7 @@ export function TravelMap() {
                 <div className="panel-header">
                   <div className="panel-title">
                     <span style={{ color: '#059669', fontSize: '1.1rem' }}>📍</span>
-                    <span>Starting Point (Origin A)</span>
+                    <span>Origin (A): {startLocationName}</span>
                   </div>
                   {activeMode === 'both' && (
                     <button
@@ -391,9 +423,19 @@ export function TravelMap() {
                         cursor: 'pointer'
                       }}
                     >
-                      {clickTarget === 'start' ? '🎯 Click Map Target' : 'Set as Click Target'}
+                      {clickTarget === 'start' ? '🎯 Click Target' : 'Set Target'}
                     </button>
                   )}
+                </div>
+
+                <div className="input-box" style={{ marginBottom: '0.65rem' }}>
+                  <label>Location / City Name</label>
+                  <input
+                    type="text"
+                    value={startLocationName}
+                    placeholder="e.g. Vellore"
+                    onChange={(e) => setStartLocationName(e.target.value)}
+                  />
                 </div>
 
                 <div className="input-row-grid">
@@ -434,7 +476,7 @@ export function TravelMap() {
                 <div className="panel-header">
                   <div className="panel-title">
                     <span style={{ color: '#e11d48', fontSize: '1.1rem' }}>🏁</span>
-                    <span>Ending Point (Destination B)</span>
+                    <span>Destination (B): {endLocationName}</span>
                   </div>
                   {activeMode === 'both' && (
                     <button
@@ -450,9 +492,19 @@ export function TravelMap() {
                         cursor: 'pointer'
                       }}
                     >
-                      {clickTarget === 'end' ? '🎯 Click Map Target' : 'Set as Click Target'}
+                      {clickTarget === 'end' ? '🎯 Click Target' : 'Set Target'}
                     </button>
                   )}
+                </div>
+
+                <div className="input-box" style={{ marginBottom: '0.65rem' }}>
+                  <label>Location / City Name</label>
+                  <input
+                    type="text"
+                    value={endLocationName}
+                    placeholder="e.g. Chennai"
+                    onChange={(e) => setEndLocationName(e.target.value)}
+                  />
                 </div>
 
                 <div className="input-row-grid">

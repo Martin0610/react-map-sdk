@@ -37,7 +37,9 @@ export const Map: React.FC<MapProps> = ({
   center,
   zoom,
   start,
+  startName,
   end,
+  endName,
   routing = true,
   routingProfile = 'driving',
   routeColor = '#3b82f6',
@@ -194,16 +196,17 @@ export const Map: React.FC<MapProps> = ({
     const startValidation = start ? validateCoordinates(start, 'start') : null;
     if (start && startValidation?.isValid) {
       const startIcon = getStartDivIcon(L);
+      const startLabel = startName ? `📍 ${startName}` : '📍 Starting Point (A)';
       if (startMarkerRef.current) {
         startMarkerRef.current.setLatLng([start.lat, start.lng]);
         startMarkerRef.current.setPopupContent(
-          `<div style="font-family:system-ui,sans-serif;padding:2px 4px;"><b style="color:#047857;">📍 Starting Point (A)</b><br/><span style="font-size:12px;color:#475569;">Lat: ${start.lat.toFixed(4)}, Lng: ${start.lng.toFixed(4)}</span></div>`
+          `<div style="font-family:system-ui,sans-serif;padding:2px 4px;"><b style="color:#047857;">${startLabel}</b><br/><span style="font-size:12px;color:#475569;">Lat: ${start.lat.toFixed(4)}, Lng: ${start.lng.toFixed(4)}</span></div>`
         );
       } else {
         const marker = L.marker([start.lat, start.lng], { icon: startIcon }).addTo(map);
-        marker.bindTooltip('<b>Starting Point (A)</b>', { direction: 'top', offset: [0, -42] });
+        marker.bindTooltip(`<b>${startLabel}</b>`, { direction: 'top', offset: [0, -42] });
         marker.bindPopup(
-          `<div style="font-family:system-ui,sans-serif;padding:2px 4px;"><b style="color:#047857;">📍 Starting Point (A)</b><br/><span style="font-size:12px;color:#475569;">Lat: ${start.lat.toFixed(4)}, Lng: ${start.lng.toFixed(4)}</span></div>`
+          `<div style="font-family:system-ui,sans-serif;padding:2px 4px;"><b style="color:#047857;">${startLabel}</b><br/><span style="font-size:12px;color:#475569;">Lat: ${start.lat.toFixed(4)}, Lng: ${start.lng.toFixed(4)}</span></div>`
         );
         startMarkerRef.current = marker;
       }
@@ -221,16 +224,17 @@ export const Map: React.FC<MapProps> = ({
     const endValidation = end ? validateCoordinates(end, 'end') : null;
     if (end && endValidation?.isValid) {
       const endIcon = getEndDivIcon(L);
+      const endLabel = endName ? `🏁 ${endName}` : '🏁 Destination Point (B)';
       if (endMarkerRef.current) {
         endMarkerRef.current.setLatLng([end.lat, end.lng]);
         endMarkerRef.current.setPopupContent(
-          `<div style="font-family:system-ui,sans-serif;padding:2px 4px;"><b style="color:#be123c;">🏁 Destination Point (B)</b><br/><span style="font-size:12px;color:#475569;">Lat: ${end.lat.toFixed(4)}, Lng: ${end.lng.toFixed(4)}</span></div>`
+          `<div style="font-family:system-ui,sans-serif;padding:2px 4px;"><b style="color:#be123c;">${endLabel}</b><br/><span style="font-size:12px;color:#475569;">Lat: ${end.lat.toFixed(4)}, Lng: ${end.lng.toFixed(4)}</span></div>`
         );
       } else {
         const marker = L.marker([end.lat, end.lng], { icon: endIcon }).addTo(map);
-        marker.bindTooltip('<b>Destination Point (B)</b>', { direction: 'top', offset: [0, -42] });
+        marker.bindTooltip(`<b>${endLabel}</b>`, { direction: 'top', offset: [0, -42] });
         marker.bindPopup(
-          `<div style="font-family:system-ui,sans-serif;padding:2px 4px;"><b style="color:#be123c;">🏁 Destination Point (B)</b><br/><span style="font-size:12px;color:#475569;">Lat: ${end.lat.toFixed(4)}, Lng: ${end.lng.toFixed(4)}</span></div>`
+          `<div style="font-family:system-ui,sans-serif;padding:2px 4px;"><b style="color:#be123c;">${endLabel}</b><br/><span style="font-size:12px;color:#475569;">Lat: ${end.lat.toFixed(4)}, Lng: ${end.lng.toFixed(4)}</span></div>`
         );
         endMarkerRef.current = marker;
       }
@@ -385,8 +389,10 @@ export const Map: React.FC<MapProps> = ({
   }, [
     start?.lat,
     start?.lng,
+    startName,
     end?.lat,
     end?.lng,
+    endName,
     center?.lat,
     center?.lng,
     zoom,
