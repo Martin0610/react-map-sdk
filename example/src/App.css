@@ -76,29 +76,28 @@ body {
   border-color: var(--border-hover);
 }
 
-/* Mode Switcher Segmented Bar */
+/* Minimalist Underline Tab Navigation */
 .segmented-nav {
   display: flex;
-  background: #f4f4f5;
-  padding: 3px;
-  border-radius: var(--radius-sm);
-  margin-bottom: 1rem;
-  gap: 2px;
+  background: transparent;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1.25rem;
+  gap: 1.75rem;
   width: 100%;
-  max-width: 580px;
+  padding: 0;
 }
 
 .seg-btn {
-  flex: 1;
-  padding: 0.45rem 0.75rem;
-  font-size: 0.85rem;
+  padding: 0.65rem 0.2rem;
+  font-size: 0.9rem;
   font-weight: 500;
   border: none;
   background: transparent;
   color: var(--text-muted);
-  border-radius: 6px;
+  border-radius: 0;
   cursor: pointer;
-  transition: all 0.15s ease;
+  position: relative;
+  transition: color 0.15s ease;
   white-space: nowrap;
 }
 
@@ -107,10 +106,21 @@ body {
 }
 
 .seg-btn.active {
-  background: var(--surface);
+  background: transparent;
   color: var(--text-main);
   font-weight: 600;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  box-shadow: none;
+}
+
+.seg-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2.5px;
+  background-color: var(--text-main);
+  border-radius: 2px;
 }
 
 /* Preset Chips */
