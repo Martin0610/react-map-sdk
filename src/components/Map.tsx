@@ -1,11 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type L from 'leaflet';
-import type { GeocodeResult, MapProps } from '../types/map';
+import type { Coordinates, GeocodeResult, MapProps } from '../types/map';
 import { validateCoordinates } from '../utils/validation';
 import { calculateInitialCenter, calculateInitialZoom } from '../utils/bounds';
 import { getStartDivIcon, getEndDivIcon } from '../utils/icons';
 import { fetchRoadRoute } from '../utils/routing';
 import { reverseGeocode } from '../utils/geocoding';
+import {
+  getCurrentLocation,
+  getUserLocationDivIcon,
+  watchLiveLocation
+} from '../utils/geolocation';
 import { AddressSearch } from './AddressSearch';
 
 const DEFAULT_TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
@@ -13,9 +18,10 @@ const DEFAULT_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors';
 
 const LEAFLET_CSS_ID = 'react-map-sdk-leaflet-css';
+const PULSE_STYLE_ID = 'react-map-sdk-pulse-style';
 
 /**
- * Ensures Leaflet CSS is injected in the document head if not already loaded.
+ * Ensures Leaflet CSS and live location pulse animation are injected in the document head.
  */
 function ensureLeafletCss(): void {
   if (typeof document === 'undefined') return;
@@ -27,6 +33,19 @@ function ensureLeafletCss(): void {
     link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
     link.crossOrigin = '';
     document.head.appendChild(link);
+  }
+
+  if (!document.getElementById(PULSE_STYLE_ID)) {
+    const style = document.createElement('style');
+    style.id = PULSE_STYLE_ID;
+    style.textContent = `
+      @keyframes react-map-pulse {
+        0% { transform: scale(0.95); opacity: 0.85; }
+        70% { transform: scale(2.3); opacity: 0; }
+        100% { transform: scale(2.3); opacity: 0; }
+      }
+    `;
+    document.head.appendChild(style);
   }
 }
 
@@ -67,17 +86,24 @@ export const Map: React.FC<MapProps> = ({
   showSearch = false,
   searchPlaceholder = 'Search address, city, or place...',
   onSearchResultSelect,
-  onReverseGeocode
+  onReverseGeocode,
+  showUserLocation = false,
+  trackUserLocation = false,
+  showLocateControl = false,
+  onUserLocationChange
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const startMarkerRef = useRef<L.Marker | null>(null);
   const endMarkerRef = useRef<L.Marker | null>(null);
+  const userMarkerRef = useRef<L.Marker | null>(null);
   const polylineRef = useRef<L.Polyline | null>(null);
   const routeCasingRef = useRef<L.Polyline | null>(null);
   const routeFillRef = useRef<L.Polyline | null>(null);
   const leafletModuleRef = useRef<typeof L | null>(null);
   const isRoutingActiveRef = useRef<number>(0);
+
+  const [isLocating, setIsLocating] = useState(false);
 
   const onClickRef = useRef(onClick);
   onClickRef.current = onClick;
@@ -87,6 +113,9 @@ export const Map: React.FC<MapProps> = ({
 
   const onReverseGeocodeRef = useRef(onReverseGeocode);
   onReverseGeocodeRef.current = onReverseGeocode;
+
+  const onUserLocationChangeRef = useRef(onUserLocationChange);
+  onUserLocationChangeRef.current = onUserLocationChange;
 
   const [isClient, setIsClient] = useState(false);
 
@@ -438,6 +467,86 @@ export const Map: React.FC<MapProps> = ({
     lineOpacity
   ]);
 
+  // Handle Live User Location Tracking
+  useEffect(() => {
+    if (!isClient || (!showUserLocation && !trackUserLocation)) {
+      if (userMarkerRef.current && mapInstanceRef.current) {
+        mapInstanceRef.current.removeLayer(userMarkerRef.current);
+        userMarkerRef.current = null;
+      }
+      return;
+    }
+
+    const L = leafletModuleRef.current;
+    const map = mapInstanceRef.current;
+    if (!L || !map) return;
+
+    const updateUserMarker = (coords: Coordinates) => {
+      if (!mapInstanceRef.current || !leafletModuleRef.current) return;
+      const leaflet = leafletModuleRef.current;
+      const currentMap = mapInstanceRef.current;
+
+      if (userMarkerRef.current) {
+        userMarkerRef.current.setLatLng([coords.lat, coords.lng]);
+      } else {
+        userMarkerRef.current = leaflet.marker([coords.lat, coords.lng], {
+          icon: getUserLocationDivIcon(leaflet),
+          zIndexOffset: 1000
+        }).addTo(currentMap);
+      }
+
+      if (trackUserLocation) {
+        currentMap.panTo([coords.lat, coords.lng]);
+      }
+
+      if (onUserLocationChangeRef.current) {
+        onUserLocationChangeRef.current(coords);
+      }
+    };
+
+    if (trackUserLocation) {
+      const unsubscribe = watchLiveLocation(
+        updateUserMarker,
+        (err) => console.warn('[react-map-sdk] Failed to watch live location:', err)
+      );
+      return unsubscribe;
+    } else {
+      getCurrentLocation()
+        .then(updateUserMarker)
+        .catch((err) => console.warn('[react-map-sdk] Failed to get user location:', err));
+    }
+  }, [isClient, showUserLocation, trackUserLocation]);
+
+  const handleLocateUser = async () => {
+    setIsLocating(true);
+    try {
+      const coords = await getCurrentLocation();
+      const map = mapInstanceRef.current;
+      const L = leafletModuleRef.current;
+
+      if (map && L) {
+        if (userMarkerRef.current) {
+          userMarkerRef.current.setLatLng([coords.lat, coords.lng]);
+        } else {
+          userMarkerRef.current = L.marker([coords.lat, coords.lng], {
+            icon: getUserLocationDivIcon(L),
+            zIndexOffset: 1000
+          }).addTo(map);
+        }
+
+        map.flyTo([coords.lat, coords.lng], 15, { animate: true, duration: 1.2 });
+      }
+
+      if (onUserLocationChangeRef.current) {
+        onUserLocationChangeRef.current(coords);
+      }
+    } catch (err) {
+      console.warn('[react-map-sdk] Failed to locate user position:', err);
+    } finally {
+      setIsLocating(false);
+    }
+  };
+
   const containerStyle: React.CSSProperties = {
     position: 'relative',
     width: typeof width === 'number' ? `${width}px` : width,
@@ -476,6 +585,40 @@ export const Map: React.FC<MapProps> = ({
             onSelect={handleSearchSelect}
           />
         </div>
+      )}
+
+      {isClient && showLocateControl && (
+        <button
+          type="button"
+          onClick={handleLocateUser}
+          title="Locate my position"
+          style={{
+            position: 'absolute',
+            bottom: '24px',
+            right: '16px',
+            zIndex: 1000,
+            width: '36px',
+            height: '36px',
+            borderRadius: '8px',
+            backgroundColor: '#ffffff',
+            border: '1px solid #cbd5e1',
+            boxShadow: '0 2px 6px rgba(0, 0, 0, 0.15)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: isLocating ? 'wait' : 'pointer',
+            color: isLocating ? '#2563eb' : '#334155',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="22" x2="18" y1="12" y2="12" />
+            <line x1="6" x2="2" y1="12" y2="12" />
+            <line x1="12" x2="12" y1="6" y2="2" />
+            <line x1="12" x2="12" y1="22" y2="18" />
+          </svg>
+        </button>
       )}
 
       {!isClient && (

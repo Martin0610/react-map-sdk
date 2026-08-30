@@ -251,6 +251,29 @@ export interface MapProps {
    * Optional callback when reverse geocoding is performed for a clicked coordinate.
    */
   onReverseGeocode?: (result: GeocodeResult) => void;
+
+  /**
+   * Whether to display the user's live GPS location as a pulsing blue dot on the map.
+   * Default: false
+   */
+  showUserLocation?: boolean;
+
+  /**
+   * Whether to continuously track the user's live GPS movement in real-time.
+   * Default: false
+   */
+  trackUserLocation?: boolean;
+
+  /**
+   * Whether to display a floating "Locate Me" GPS crosshair button on the map canvas.
+   * Default: false
+   */
+  showLocateControl?: boolean;
+
+  /**
+   * Callback fired when the user's live GPS coordinates are detected or updated.
+   */
+  onUserLocationChange?: (coords: Coordinates) => void;
 }
 
 /**

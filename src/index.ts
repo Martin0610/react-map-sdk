@@ -50,3 +50,10 @@ export {
   geocodeAddress,
   reverseGeocode
 } from './utils/geocoding';
+
+export {
+  getCurrentLocation,
+  watchLiveLocation,
+  createUserLocationPinSvg,
+  getUserLocationDivIcon
+} from './utils/geolocation';

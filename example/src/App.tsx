@@ -3,6 +3,7 @@ import {
   Map,
   AddressSearch,
   reverseGeocode,
+  getCurrentLocation,
   formatDuration,
   type Coordinates,
   type GeocodeResult,
@@ -22,7 +23,8 @@ import {
   Code,
   Copy,
   Check,
-  X
+  X,
+  Navigation
 } from 'lucide-react';
 import './App.css';
 
@@ -103,6 +105,7 @@ export const App: React.FC = () => {
   // Geocoding info from last map click
   const [lastClickedAddress, setLastClickedAddress] = useState<string | null>(null);
   const [isGeocodingClick, setIsGeocodingClick] = useState(false);
+  const [isLocatingUser, setIsLocatingUser] = useState(false);
 
   // Map Only Mode State
   const [centerCoords, setCenterCoords] = useState<Coordinates>({ lat: 12.9202, lng: 79.1325 });
@@ -111,6 +114,25 @@ export const App: React.FC = () => {
   // Start & End Coordinates
   const [start, setStart] = useState<Coordinates>(PRESETS[0].start);
   const [end, setEnd] = useState<Coordinates>(PRESETS[0].end);
+
+  const handleUseCurrentLocationAsOrigin = async () => {
+    setIsLocatingUser(true);
+    try {
+      const coords = await getCurrentLocation();
+      setStart(coords);
+      setActivePreset(-1);
+      const geo = await reverseGeocode(coords);
+      const resolved = geo ? (geo.name || geo.displayName.split(',')[0].trim()) : `My Location (${coords.lat}, ${coords.lng})`;
+      setStartName(resolved);
+      setLastClickedAddress(geo ? geo.displayName : `${coords.lat}, ${coords.lng}`);
+      setClickTarget('end');
+    } catch (err) {
+      console.warn('Geolocation error:', err);
+      alert('Could not detect your current GPS location. Please ensure location permissions are enabled in your browser.');
+    } finally {
+      setIsLocatingUser(false);
+    }
+  };
 
   const applyPreset = (index: number) => {
     setActivePreset(index);
@@ -253,15 +275,15 @@ export const App: React.FC = () => {
 
   const getCodeSnippet = () => {
     if (mode === 'map-only') {
-      return `import { Map, AddressSearch } from 'react-map-sdk';\n\nexport function MyMap() {\n  return (\n    <div>\n      <AddressSearch onSelect={(res) => console.log(res.coordinates)} />\n      <Map\n        center={{ lat: ${centerCoords.lat}, lng: ${centerCoords.lng} }}\n        zoom={${zoom}}\n        height="520px"\n      />\n    </div>\n  );\n}`;
+      return `import { Map, AddressSearch } from 'react-map-sdk';\n\nexport function MyMap() {\n  return (\n    <div>\n      <AddressSearch onSelect={(res) => console.log(res.coordinates)} />\n      <Map\n        center={{ lat: ${centerCoords.lat}, lng: ${centerCoords.lng} }}\n        zoom={${zoom}}\n        showUserLocation={true}\n        showLocateControl={true}\n        height="520px"\n      />\n    </div>\n  );\n}`;
     }
     if (mode === 'start-only') {
-      return `import { Map } from 'react-map-sdk';\n\nexport function OriginMap() {\n  return (\n    <Map\n      start={{ lat: ${start.lat}, lng: ${start.lng} }}\n      startName="${startName}"\n      height="520px"\n    />\n  );\n}`;
+      return `import { Map } from 'react-map-sdk';\n\nexport function OriginMap() {\n  return (\n    <Map\n      start={{ lat: ${start.lat}, lng: ${start.lng} }}\n      startName="${startName}"\n      showUserLocation={true}\n      showLocateControl={true}\n      height="520px"\n    />\n  );\n}`;
     }
     if (mode === 'end-only') {
-      return `import { Map } from 'react-map-sdk';\n\nexport function DestinationMap() {\n  return (\n    <Map\n      end={{ lat: ${end.lat}, lng: ${end.lng} }}\n      endName="${endName}"\n      height="520px"\n    />\n  );\n}`;
+      return `import { Map } from 'react-map-sdk';\n\nexport function DestinationMap() {\n  return (\n    <Map\n      end={{ lat: ${end.lat}, lng: ${end.lng} }}\n      endName="${endName}"\n      showUserLocation={true}\n      showLocateControl={true}\n      height="520px"\n    />\n  );\n}`;
     }
-    return `import { Map, AddressSearch, type RouteInfo } from 'react-map-sdk';\n\nexport function RouteOverview() {\n  return (\n    <Map\n      start={{ lat: ${start.lat}, lng: ${start.lng} }}\n      startName="${startName}"\n      end={{ lat: ${end.lat}, lng: ${end.lng} }}\n      endName="${endName}"\n      routing={${routing}}\n      routingProfile="${profile}"\n      routeColor="${routeColor}"\n      onRouteCalculated={(info: RouteInfo) => {\n        console.log('Distance:', info.distanceKm, 'km');\n        console.log('ETA:', info.durationFormatted);\n      }}\n      height="520px"\n    />\n  );\n}`;
+    return `import { Map, AddressSearch, type RouteInfo } from 'react-map-sdk';\n\nexport function RouteOverview() {\n  return (\n    <Map\n      start={{ lat: ${start.lat}, lng: ${start.lng} }}\n      startName="${startName}"\n      end={{ lat: ${end.lat}, lng: ${end.lng} }}\n      endName="${endName}"\n      routing={${routing}}\n      routingProfile="${profile}"\n      routeColor="${routeColor}"\n      showUserLocation={true}\n      showLocateControl={true}\n      onRouteCalculated={(info: RouteInfo) => {\n        console.log('Distance:', info.distanceKm, 'km');\n        console.log('ETA:', info.durationFormatted);\n      }}\n      height="520px"\n    />\n  );\n}`;
   };
 
   const handleCopy = () => {
@@ -343,13 +365,34 @@ export const App: React.FC = () => {
         </div>
 
         {mode === 'map-only' && (
-          <Map center={centerCoords} zoom={zoom} onClick={handleMapClick} height="520px" />
+          <Map
+            center={centerCoords}
+            zoom={zoom}
+            onClick={handleMapClick}
+            showUserLocation={true}
+            showLocateControl={true}
+            height="520px"
+          />
         )}
         {mode === 'start-only' && (
-          <Map start={start} startName={startName} onClick={handleMapClick} height="520px" />
+          <Map
+            start={start}
+            startName={startName}
+            onClick={handleMapClick}
+            showUserLocation={true}
+            showLocateControl={true}
+            height="520px"
+          />
         )}
         {mode === 'end-only' && (
-          <Map end={end} endName={endName} onClick={handleMapClick} height="520px" />
+          <Map
+            end={end}
+            endName={endName}
+            onClick={handleMapClick}
+            showUserLocation={true}
+            showLocateControl={true}
+            height="520px"
+          />
         )}
         {mode === 'both' && (
           <Map
@@ -362,6 +405,8 @@ export const App: React.FC = () => {
             routeColor={routeColor}
             onRouteCalculated={(info) => setRouteInfo(info)}
             onClick={handleMapClick}
+            showUserLocation={true}
+            showLocateControl={true}
             height="520px"
           />
         )}
@@ -447,16 +492,41 @@ export const App: React.FC = () => {
                     <span className="card-title-text" style={{ color: '#059669', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                       <MapPin size={16} color="#059669" /> Origin (A)
                     </span>
-                    {mode === 'both' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                       <button
-                        className="target-badge-btn target-badge-emerald"
-                        onClick={() => setClickTarget('start')}
-                        style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                        type="button"
+                        onClick={handleUseCurrentLocationAsOrigin}
+                        disabled={isLocatingUser}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.3rem',
+                          fontSize: '0.72rem',
+                          fontWeight: 600,
+                          color: '#047857',
+                          backgroundColor: '#ecfdf5',
+                          border: '1px solid #a7f3d0',
+                          borderRadius: '6px',
+                          padding: '3px 7px',
+                          cursor: isLocatingUser ? 'wait' : 'pointer'
+                        }}
+                        title="Set Origin to my current GPS location"
                       >
-                        {clickTarget === 'start' && <Crosshair size={13} />}
-                        {clickTarget === 'start' ? 'Active Click Target' : 'Set Click Target'}
+                        <Navigation size={12} />
+                        {isLocatingUser ? 'Locating...' : 'Use My Location'}
                       </button>
-                    )}
+
+                      {mode === 'both' && (
+                        <button
+                          className="target-badge-btn target-badge-emerald"
+                          onClick={() => setClickTarget('start')}
+                          style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                        >
+                          {clickTarget === 'start' && <Crosshair size={13} />}
+                          {clickTarget === 'start' ? 'Active Click Target' : 'Set Target'}
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div className="field-group">
                     <label>Search Address (Geocoding)</label>
