@@ -10,12 +10,15 @@ Integrate interactive maps and render starting and ending point markers with a s
 
 ---
 
-## 🚀 Features (Version 1)
+## 🚀 Features
 
 - 🗺️ **Zero-Configuration Map**: Instant OpenStreetMap tile rendering without any API keys or billing accounts.
-- 🟢 **Starting Point Marker**: Clearly distinguished emerald pin (Point A) with automatic coordinate validation.
-- 🔴 **Ending Point Marker**: Clearly distinguished rose red pin (Point B) with automatic coordinate validation.
-- 📐 **Automatic Bounds & Centering**: Automatically calculates the optimal bounding box and padding when both start and end locations are provided.
+- 🔍 **100% Free Geocoding & Autocomplete**: Search addresses and landmarks with `<AddressSearch />` and `geocodeAddress()` with zero API keys.
+- 📍 **Reverse Geocoding**: Automatically convert `{ lat, lng }` coordinates to formatted street addresses with `reverseGeocode()`.
+- 🚗 **Real Road Routing & ETA**: Turn-by-turn road trajectory, precise distance (km), and estimated travel time powered by OSRM.
+- 🟢 **Starting Point Marker**: Clearly distinguished emerald pin (Point A) with coordinate validation.
+- 🔴 **Ending Point Marker**: Clearly distinguished rose red pin (Point B) with coordinate validation.
+- 📐 **Automatic Bounds & Centering**: Automatically calculates optimal bounding box, zoom, and padding.
 - 🛡️ **Strict Coordinate Validation**: Prevents silent map bugs by validating latitude (`-90` to `90`) and longitude (`-180` to `180`).
 - ⚡ **SSR Safe**: Compatible with Next.js (App & Pages routers), Vite, Remix, and Create React App.
 - 📦 **Dual ESM & CJS Build**: Bundled with `tsup` for maximum tree-shaking and compatibility.
@@ -43,126 +46,126 @@ pnpm add react-map-sdk leaflet
 
 ## ⚡ Quick Start
 
-### 1. Start & End Points (Primary Usage)
+### 1. Turn-by-Turn Road Route & ETA (Zero API Keys)
 
 ```tsx
 import React from 'react';
-import { Map } from 'react-map-sdk';
+import { Map, type RouteInfo } from 'react-map-sdk';
 
 export function RouteOverview() {
   return (
     <Map
       start={{ lat: 12.9716, lng: 79.1597 }} // Vellore
+      startName="Vellore Fort"
       end={{ lat: 13.0827, lng: 80.2707 }}   // Chennai
+      endName="Chennai Central"
+      routing={true}
+      routingProfile="driving" // 'driving' | 'walking' | 'cycling'
+      onRouteCalculated={(info: RouteInfo) => {
+        console.log(`Distance: ${info.distanceKm} km, ETA: ${info.durationFormatted}`);
+      }}
       height="500px"
     />
   );
 }
 ```
 
-When both `start` and `end` are provided, the map **automatically calculates the midpoint, fits the bounding box, and applies comfortable padding**.
-
 ---
 
-## 📖 Usage Examples
-
-### 2. Map with Start Point Only
+### 2. Address Search Autocomplete (Geocoding)
 
 ```tsx
-import { Map } from 'react-map-sdk';
+import React, { useState } from 'react';
+import { Map, AddressSearch, type GeocodeResult } from 'react-map-sdk';
 
-export function StartOnlyMap() {
+export function SearchableMap() {
+  const [coords, setCoords] = useState({ lat: 48.8584, lng: 2.2945 }); // Paris
+
   return (
-    <Map
-      start={{ lat: 37.7749, lng: -122.4194 }} // San Francisco
-      zoom={14}
-      height="450px"
-    />
-  );
-}
-```
-
-### 3. Map with End Point Only
-
-```tsx
-import { Map } from 'react-map-sdk';
-
-export function EndOnlyMap() {
-  return (
-    <Map
-      end={{ lat: 34.0522, lng: -118.2437 }} // Los Angeles
-      zoom={14}
-      height="450px"
-    />
-  );
-}
-```
-
-### 4. Basic Map Only (Custom Center & Zoom)
-
-```tsx
-import { Map } from 'react-map-sdk';
-
-export function SimpleMap() {
-  return (
-    <Map
-      center={{ lat: 51.5074, lng: -0.1278 }} // London
-      zoom={12}
-      height="400px"
-    />
+    <div style={{ maxWidth: '600px' }}>
+      <AddressSearch
+        placeholder="Search any place or address..."
+        onSelect={(result: GeocodeResult) => {
+          console.log('Selected:', result.displayName, result.coordinates);
+          setCoords(result.coordinates);
+        }}
+      />
+      <Map center={coords} zoom={14} height="450px" style={{ marginTop: '10px' }} />
+    </div>
   );
 }
 ```
 
 ---
 
-## 🛠️ Component API (`MapProps`)
+### 3. Programmatic Geocoding & Reverse Geocoding
+
+```ts
+import { geocodeAddress, reverseGeocode } from 'react-map-sdk';
+
+// 1. Forward Geocoding: Address -> Coordinates
+const results = await geocodeAddress('Eiffel Tower, Paris');
+console.log(results[0].coordinates); // { lat: 48.8584, lng: 2.2945 }
+console.log(results[0].displayName); // "Tour Eiffel, 5, Avenue Anatole France..."
+
+// 2. Reverse Geocoding: Coordinates -> Address
+const location = await reverseGeocode({ lat: 12.9716, lng: 79.1597 });
+console.log(location?.displayName); // "Vellore, Tamil Nadu, India"
+```
+
+---
+
+## 🛠️ Component API
+
+### `<Map />` (`MapProps`)
 
 | Prop | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `start` | `Coordinates` | `undefined` | Starting point coordinates (`{ lat, lng }`). Displays a green marker (Point A). |
+| `startName` | `string` | `undefined` | Custom label or name for starting point marker. |
 | `end` | `Coordinates` | `undefined` | Ending point coordinates (`{ lat, lng }`). Displays a red marker (Point B). |
-| `showLine` | `boolean` | `true` | Whether to draw a connecting line between start and end points. |
-| `lineColor` | `string` | `"#2563eb"` | Color of the connecting line. |
-| `lineWeight` | `number` | `3` | Stroke width in pixels of the connecting line. |
-| `lineDashArray` | `string` | `"6, 8"` | Dash pattern (e.g. `"6, 8"` for dashed, or `undefined` for solid). |
-| `lineOpacity` | `number` | `0.85` | Opacity of the connecting line (0 to 1). |
+| `endName` | `string` | `undefined` | Custom label or name for destination marker. |
+| `routing` | `boolean` | `true` | Enables real Google Maps-style road routing via OSRM (100% free). |
+| `routingProfile` | `'driving' \| 'walking' \| 'cycling'` | `'driving'` | Travel mode for routing. |
+| `routeColor` | `string` | `"#3b82f6"` | Color of the road route line. |
+| `routeWeight` | `number` | `5` | Stroke width in pixels of road route line. |
+| `showLine` | `boolean` | `true` | Fallback connecting straight line if routing is disabled. |
 | `center` | `Coordinates` | *Derived* | Initial center coordinates. If omitted, derived from `start`/`end`. |
 | `zoom` | `number` | `13` (or auto) | Initial zoom level. |
-| `width` | `string \| number` | `"100%"` | Width of the map container (e.g. `"100%"`, `600`). |
-| `height` | `string \| number` | `"450px"` | Height of the map container (e.g. `"500px"`, `"100vh"`, `450`). |
-| `className` | `string` | `""` | Custom CSS class name for the wrapper element. |
-| `style` | `React.CSSProperties` | `{}` | Inline CSS styles for the wrapper element. |
-| `fitBoundsPadding`| `[number, number]` | `[50, 50]` | Pixel padding when auto-fitting start and end markers. |
-| `minZoom` | `number` | `1` | Minimum allowed zoom level. |
-| `maxZoom` | `number` | `19` | Maximum allowed zoom level. |
-| `tileLayerUrl` | `string` | OpenStreetMap standard | Custom tile layer URL template. |
-| `attribution` | `string` | OSM attribution | Custom tile layer attribution string. |
-| `onMapReady` | `(mapInstance: L.Map) => void` | `undefined` | Callback fired when the map instance is initialized. |
+| `width` | `string \| number` | `"100%"` | Width of map container. |
+| `height` | `string \| number` | `"450px"` | Height of map container. |
+| `showSearch` | `boolean` | `false` | Displays an embedded address search bar inside the map. |
+| `onRouteCalculated` | `(route: RouteInfo) => void` | `undefined` | Callback fired with road trajectory, distance (km), and ETA. |
+| `onClick` | `(coords: Coordinates) => void` | `undefined` | Callback fired when map is clicked with `{ lat, lng }`. |
+| `onReverseGeocode` | `(result: GeocodeResult) => void` | `undefined` | Callback fired with reverse geocoded address when map is clicked. |
+
+---
+
+### `<AddressSearch />` (`AddressSearchProps`)
+
+| Prop | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `onSelect` | `(result: GeocodeResult) => void` | *Required* | Callback triggered when an address item is selected. |
+| `placeholder` | `string` | `"Search address..."` | Placeholder text for search input. |
+| `initialValue` | `string` | `""` | Initial input query. |
+| `debounceMs` | `number` | `300` | Debounce delay in milliseconds before querying. |
+| `disabled` | `boolean` | `false` | Disables search input. |
+| `options` | `GeocodeOptions` | `{}` | Optional query filters (limit, language, countryCodes). |
 
 ---
 
 ## 🔷 TypeScript Types
 
-The package exports all relevant TypeScript interfaces:
-
 ```ts
-import type { Coordinates, MapProps, ValidationResult } from 'react-map-sdk';
-
-// Coordinates interface
-export interface Coordinates {
-  lat: number; // -90 <= lat <= 90
-  lng: number; // -180 <= lng <= 180
-}
-```
-
-You can also use the exported validation utilities directly:
-
-```ts
-import { validateCoordinates, isValidLatitude, isValidLongitude } from 'react-map-sdk';
-
-const result = validateCoordinates({ lat: 12.9716, lng: 79.1597 });
-console.log(result.isValid); // true
+import type {
+  Coordinates,
+  MapProps,
+  RouteInfo,
+  GeocodeResult,
+  AddressDetails,
+  GeocodeOptions,
+  ReverseGeocodeOptions
+} from 'react-map-sdk';
 ```
 
 ---
@@ -172,8 +175,6 @@ console.log(result.isValid); // true
 `react-map-sdk` is built to be SSR-safe.
 
 ### Next.js App Router (`app/` directory)
-
-Because Leaflet operates on DOM elements in the browser, mark the consuming component as a Client Component:
 
 ```tsx
 'use client';
@@ -187,6 +188,7 @@ export default function Page() {
       <Map
         start={{ lat: 12.9716, lng: 79.1597 }}
         end={{ lat: 13.0827, lng: 80.2707 }}
+        routing={true}
         height="500px"
       />
     </main>
@@ -198,90 +200,27 @@ export default function Page() {
 
 ## 💻 Development & Building
 
-### 1. Clone & Install Dependencies
 ```bash
-git clone <repository-url>
-cd "MAP SDK PACKAGE"
+# Install dependencies
 npm install
-```
 
-### 2. Build the SDK
-```bash
+# Run unit tests
+npm run test
+
+# Build SDK packages (ESM, CJS, Types)
 npm run build
+
+# Run interactive demo app
+cd example && npm install && npm run dev
 ```
-Generates ESM (`dist/index.mjs`), CJS (`dist/index.js`), and TypeScript declaration files (`dist/index.d.ts`).
-
-### 3. Type Checking
-```bash
-npm run typecheck
-```
-
-### 4. Run the Interactive Demo
-```bash
-cd example
-npm install
-npm run dev
-```
-
----
-
-## 🚀 Publishing to npm
-
-### Step 1: Login to npm
-```bash
-npm login
-```
-
-### Step 2: Verify package name availability
-Check if `react-map-sdk` is available:
-```bash
-npm view react-map-sdk
-```
-
-> **Note on Naming**: If `react-map-sdk` is already claimed on npm, you can publish it under your own scoped username or organization in `package.json`:
-> ```json
-> {
->   "name": "@your-username/react-map-sdk"
-> }
-> ```
-> And publish with public access:
-> ```bash
-> npm publish --access public
-> ```
-
-### Step 3: Run the build and publish
-```bash
-npm run build
-npm publish
-```
-
----
-
-## ⚠️ Version 1 Scope & Limitations
-
-Version 1 is intentionally focused on **clean map rendering, start marker, and end marker**.
-
-Version 1 does **NOT** provide:
-- ❌ Routing / Turn-by-turn navigation polyline
-- ❌ Distance & ETA calculation
-- ❌ Forward & Reverse Geocoding
-- ❌ Live WebSocket tracking
-- ❌ Google Maps / Mapbox providers
 
 ---
 
 ## 🗺️ Roadmap
 
-- **Version 2**:
-  - Routing polyline overlays (OSRM / OpenRouteService integration)
-  - Distance and duration estimation
-  - Custom marker icons & multiple intermediate waypoint markers
-- **Version 3**:
-  - Multi-provider architecture (Google Maps, Mapbox, MapLibre)
-  - Geocoding & Address search components
-- **Version 4**:
-  - Real-time GPS tracking & WebSocket updates
-  - Animated marker transitions
+- **Multi-Provider Architecture**: Bring-your-own-key adapters for Google Maps JS API and Mapbox GL JS.
+- **Waypoints & Multi-Stop Routing**: Support for intermediate stops (Point A $\rightarrow$ B $\rightarrow$ C $\rightarrow$ D).
+- **Live Location Tracking**: WebSocket & GPS location stream overlay.
 
 ---
 

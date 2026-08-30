@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type L from 'leaflet';
-import type { MapProps } from '../types/map';
+import type { GeocodeResult, MapProps } from '../types/map';
 import { validateCoordinates } from '../utils/validation';
 import { calculateInitialCenter, calculateInitialZoom } from '../utils/bounds';
 import { getStartDivIcon, getEndDivIcon } from '../utils/icons';
 import { fetchRoadRoute } from '../utils/routing';
+import { reverseGeocode } from '../utils/geocoding';
+import { AddressSearch } from './AddressSearch';
 
 const DEFAULT_TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 const DEFAULT_ATTRIBUTION =
@@ -61,7 +63,11 @@ export const Map: React.FC<MapProps> = ({
   fitBoundsPadding = [50, 50],
   onRouteCalculated,
   onClick,
-  onMapReady
+  onMapReady,
+  showSearch = false,
+  searchPlaceholder = 'Search address, city, or place...',
+  onSearchResultSelect,
+  onReverseGeocode
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -78,6 +84,9 @@ export const Map: React.FC<MapProps> = ({
 
   const onRouteCalculatedRef = useRef(onRouteCalculated);
   onRouteCalculatedRef.current = onRouteCalculated;
+
+  const onReverseGeocodeRef = useRef(onReverseGeocode);
+  onReverseGeocodeRef.current = onReverseGeocode;
 
   const [isClient, setIsClient] = useState(false);
 
@@ -127,8 +136,16 @@ export const Map: React.FC<MapProps> = ({
 
         // Handle map click events
         map.on('click', (e: L.LeafletMouseEvent) => {
+          const coords = { lat: e.latlng.lat, lng: e.latlng.lng };
           if (onClickRef.current) {
-            onClickRef.current({ lat: e.latlng.lat, lng: e.latlng.lng });
+            onClickRef.current(coords);
+          }
+          if (onReverseGeocodeRef.current) {
+            reverseGeocode(coords).then((result) => {
+              if (result && onReverseGeocodeRef.current) {
+                onReverseGeocodeRef.current(result);
+              }
+            });
           }
         });
 
@@ -265,37 +282,50 @@ export const Map: React.FC<MapProps> = ({
 
           const roadLatLngs: [number, number][] = routeInfo.coordinates.map((c) => [c.lat, c.lng]);
 
-          // Layer 1: Google Maps outer dark blue casing for crisp road border
-          if (routeCasingRef.current) {
-            routeCasingRef.current.setLatLngs(roadLatLngs);
-            routeCasingRef.current.setStyle({
-              color: '#1d4ed8',
-              weight: routeWeight + 3,
-              opacity: 0.85
-            });
-          } else {
-            routeCasingRef.current = L.polyline(roadLatLngs, {
-              color: '#1d4ed8',
-              weight: routeWeight + 3,
-              opacity: 0.85,
-              lineCap: 'round',
-              lineJoin: 'round'
-            }).addTo(map);
+          const isFallback = Boolean(routeInfo.isFallback);
+
+          // Layer 1: Google Maps outer dark blue casing for crisp road border (only for real road routes)
+          if (!isFallback) {
+            if (routeCasingRef.current) {
+              routeCasingRef.current.setLatLngs(roadLatLngs);
+              routeCasingRef.current.setStyle({
+                color: '#1d4ed8',
+                weight: routeWeight + 3,
+                opacity: 0.85,
+                dashArray: ''
+              });
+            } else {
+              routeCasingRef.current = L.polyline(roadLatLngs, {
+                color: '#1d4ed8',
+                weight: routeWeight + 3,
+                opacity: 0.85,
+                lineCap: 'round',
+                lineJoin: 'round'
+              }).addTo(map);
+            }
+          } else if (routeCasingRef.current) {
+            map.removeLayer(routeCasingRef.current);
+            routeCasingRef.current = null;
           }
 
-          // Layer 2: Google Maps inner vibrant blue road fill
+          // Layer 2: Main route line (solid for real road, dashed for flight/unroutable direct line)
+          const effectiveColor = isFallback ? '#f59e0b' : routeColor;
+          const effectiveDash = isFallback ? '8, 8' : undefined;
+
           if (routeFillRef.current) {
             routeFillRef.current.setLatLngs(roadLatLngs);
             routeFillRef.current.setStyle({
-              color: routeColor,
-              weight: routeWeight,
-              opacity: 1
+              color: effectiveColor,
+              weight: isFallback ? 3 : routeWeight,
+              opacity: 0.95,
+              dashArray: effectiveDash || ''
             });
           } else {
             routeFillRef.current = L.polyline(roadLatLngs, {
-              color: routeColor,
-              weight: routeWeight,
-              opacity: 1,
+              color: effectiveColor,
+              weight: isFallback ? 3 : routeWeight,
+              opacity: 0.95,
+              dashArray: effectiveDash,
               lineCap: 'round',
               lineJoin: 'round'
             }).addTo(map);
@@ -416,12 +446,38 @@ export const Map: React.FC<MapProps> = ({
     ...style
   };
 
+  const handleSearchSelect = (result: GeocodeResult) => {
+    if (onSearchResultSelect) {
+      onSearchResultSelect(result);
+    } else if (mapInstanceRef.current) {
+      mapInstanceRef.current.setView([result.coordinates.lat, result.coordinates.lng], 14);
+    }
+  };
+
   return (
     <div
       ref={containerRef}
       className={`react-map-sdk-container ${className || ''}`.trim()}
       style={containerStyle}
     >
+      {isClient && showSearch && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '12px',
+            left: '52px',
+            zIndex: 1000,
+            width: 'calc(100% - 64px)',
+            maxWidth: '360px'
+          }}
+        >
+          <AddressSearch
+            placeholder={searchPlaceholder}
+            onSelect={handleSearchSelect}
+          />
+        </div>
+      )}
+
       {!isClient && (
         <div
           style={{

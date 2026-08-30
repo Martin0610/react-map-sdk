@@ -15,6 +15,11 @@ export interface Coordinates {
 }
 
 /**
+ * Supported travel modes for road routing.
+ */
+export type TravelProfile = 'driving' | 'car' | 'bike' | 'cycling' | 'walking';
+
+/**
  * Calculated route information containing road trajectory, distance, and duration.
  */
 export interface RouteInfo {
@@ -43,9 +48,9 @@ export interface RouteInfo {
    */
   durationFormatted: string;
   /**
-   * Travel profile used ('driving', 'walking', 'cycling').
+   * Travel profile used ('car' / 'driving', 'bike' / 'cycling', 'walking').
    */
-  profile: 'driving' | 'walking' | 'cycling';
+  profile: TravelProfile;
   /**
    * Whether this route fell back to a direct line due to network/road unavailability.
    */
@@ -101,10 +106,10 @@ export interface MapProps {
   routing?: boolean;
 
   /**
-   * Travel profile for road routing: 'driving' (default), 'walking', or 'cycling'.
-   * Default: 'driving'
+   * Travel profile for road routing: 'car' / 'driving' (default), 'bike' / 'cycling', or 'walking'.
+   * Default: 'car'
    */
-  routingProfile?: 'driving' | 'walking' | 'cycling';
+  routingProfile?: TravelProfile;
 
   /**
    * Primary color of the road route polyline (Google Maps blue by default).
@@ -224,6 +229,28 @@ export interface MapProps {
    * Optional callback when the map is initialized and ready.
    */
   onMapReady?: (mapInstance: unknown) => void;
+
+  /**
+   * Whether to display an embedded geocoding address search bar on top of the map.
+   * Default: false
+   */
+  showSearch?: boolean;
+
+  /**
+   * Placeholder text for the embedded address search bar.
+   * Default: "Search address, city, or place..."
+   */
+  searchPlaceholder?: string;
+
+  /**
+   * Callback fired when an address is selected from the embedded search bar.
+   */
+  onSearchResultSelect?: (result: GeocodeResult) => void;
+
+  /**
+   * Optional callback when reverse geocoding is performed for a clicked coordinate.
+   */
+  onReverseGeocode?: (result: GeocodeResult) => void;
 }
 
 /**
@@ -232,4 +259,166 @@ export interface MapProps {
 export interface ValidationResult {
   isValid: boolean;
   error?: string;
+}
+
+/**
+ * Detailed breakdown of address components from a geocoding result.
+ */
+export interface AddressDetails {
+  road?: string;
+  neighbourhood?: string;
+  suburb?: string;
+  city?: string;
+  town?: string;
+  village?: string;
+  county?: string;
+  state?: string;
+  postcode?: string;
+  country?: string;
+  countryCode?: string;
+  [key: string]: string | undefined;
+}
+
+/**
+ * Result returned by forward and reverse geocoding queries.
+ */
+export interface GeocodeResult {
+  /**
+   * Full, formatted display address name.
+   */
+  displayName: string;
+
+  /**
+   * Geographic coordinates (lat, lng).
+   */
+  coordinates: Coordinates;
+
+  /**
+   * Short name or place title (e.g., "Eiffel Tower", "Chennai Central").
+   */
+  name?: string;
+
+  /**
+   * Structured breakdown of address parts (city, state, country, postcode, etc.).
+   */
+  addressDetails?: AddressDetails;
+
+  /**
+   * Bounding box [minLat, maxLat, minLng, maxLng] if available.
+   */
+  boundingBox?: [number, number, number, number];
+
+  /**
+   * Type or category of place (e.g., 'building', 'amenity', 'city', 'highway').
+   */
+  type?: string;
+
+  /**
+   * Importance / relevance score of the result (between 0 and 1).
+   */
+  importance?: number;
+}
+
+/**
+ * Options for forward address geocoding searches.
+ */
+export interface GeocodeOptions {
+  /**
+   * Maximum number of search results to return.
+   * Default: 5
+   */
+  limit?: number;
+
+  /**
+   * Preferred language code for results (e.g. 'en', 'fr', 'es').
+   * Default: 'en'
+   */
+  language?: string;
+
+  /**
+   * Restrict search results to specific country codes (e.g., ['us', 'in', 'fr']).
+   */
+  countryCodes?: string[];
+
+  /**
+   * Custom Nominatim or compatible geocoding endpoint URL.
+   * Default: "https://nominatim.openstreetmap.org/search"
+   */
+  customEndpoint?: string;
+}
+
+/**
+ * Options for reverse geocoding (coordinates to address).
+ */
+export interface ReverseGeocodeOptions {
+  /**
+   * Preferred language code for results (e.g. 'en', 'fr').
+   * Default: 'en'
+   */
+  language?: string;
+
+  /**
+   * Level of detail zoom level (from 0 = country to 18 = building/house).
+   * Default: 18
+   */
+  zoom?: number;
+
+  /**
+   * Custom Nominatim or compatible reverse geocoding endpoint URL.
+   * Default: "https://nominatim.openstreetmap.org/reverse"
+   */
+  customEndpoint?: string;
+}
+
+/**
+ * Props for the AddressSearch autocomplete component.
+ */
+export interface AddressSearchProps {
+  /**
+   * Placeholder text for search input.
+   * Default: "Search address, city, or place..."
+   */
+  placeholder?: string;
+
+  /**
+   * Callback fired when a user selects a location from the search dropdown.
+   */
+  onSelect: (result: GeocodeResult) => void;
+
+  /**
+   * Optional initial input value.
+   */
+  initialValue?: string;
+
+  /**
+   * Optional custom CSS class name for the search container.
+   */
+  className?: string;
+
+  /**
+   * Optional inline styles for the search container.
+   */
+  style?: CSSProperties;
+
+  /**
+   * Geocoding query options (limit, countryCodes, language, etc.).
+   */
+  options?: GeocodeOptions;
+
+  /**
+   * Whether the input is disabled.
+   */
+  disabled?: boolean;
+
+  /**
+   * Debounce delay in milliseconds before triggering the search request.
+   * Default: 300ms
+   */
+  debounceMs?: number;
+
+  /**
+   * Whether to clear the input text automatically upon item selection.
+   * Default: false
+   */
+  clearOnSelect?: boolean;
 }

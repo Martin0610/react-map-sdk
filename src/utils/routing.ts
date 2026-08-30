@@ -1,4 +1,4 @@
-import type { Coordinates, RouteInfo } from '../types/map';
+import type { Coordinates, RouteInfo, TravelProfile } from '../types/map';
 
 const routeCache = new Map<string, RouteInfo>();
 
@@ -16,108 +16,217 @@ export function formatDuration(seconds: number): string {
 }
 
 /**
- * Fetches turn-by-turn road geometry from the Open Source Routing Machine (OSRM).
- * Zero API keys required.
+ * Normalizes travel profile alias into standard 'car' | 'bike' | 'walking'.
+ */
+export function normalizeTravelProfile(
+  profile: TravelProfile = 'car'
+): 'car' | 'bike' | 'walking' {
+  if (profile === 'car' || profile === 'driving') return 'car';
+  if (profile === 'bike' || profile === 'cycling') return 'bike';
+  return 'walking';
+}
+
+/**
+ * Fetches turn-by-turn road geometry tailored to the travel profile (Car, Bike, Walking).
+ * 100% free with zero API keys required.
  *
  * @param start Starting coordinates
  * @param end Ending coordinates
- * @param profile Travel mode: 'driving' (default), 'walking', or 'cycling'
- * @returns RouteInfo with distance, duration, and coordinate points
+ * @param profile Travel mode: 'car' (default), 'bike', or 'walking'
+ * @returns RouteInfo with profile-specific trajectory, distance, and duration
  */
 export async function fetchRoadRoute(
   start: Coordinates,
   end: Coordinates,
-  profile: 'driving' | 'walking' | 'cycling' = 'driving'
+  profile: TravelProfile = 'car'
 ): Promise<RouteInfo> {
-  const cacheKey = `${profile}:${start.lat.toFixed(5)},${start.lng.toFixed(5)}-${end.lat.toFixed(5)},${end.lng.toFixed(5)}`;
-  
+  const normProfile = normalizeTravelProfile(profile);
+  const cacheKey = `${normProfile}:${start.lat.toFixed(5)},${start.lng.toFixed(5)}-${end.lat.toFixed(5)},${end.lng.toFixed(5)}`;
+
   if (routeCache.has(cacheKey)) {
     return routeCache.get(cacheKey)!;
   }
 
-  // OSRM public server provides 'driving' road trajectory
-  const url = `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`;
+  // Profile-specific free OSM routing endpoints
+  const endpointMap = {
+    car: [
+      `https://routing.openstreetmap.de/routed-car/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`,
+      `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`
+    ],
+    bike: [
+      `https://routing.openstreetmap.de/routed-bike/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`,
+      `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`
+    ],
+    walking: [
+      `https://routing.openstreetmap.de/routed-foot/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`,
+      `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`
+    ]
+  };
 
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
+  const urlsToTry = endpointMap[normProfile];
 
-    const res = await fetch(url, { signal: controller.signal });
-    clearTimeout(timeoutId);
+  for (const url of urlsToTry) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000); // 4s fast timeout
 
-    if (!res.ok) {
-      throw new Error(`Routing request failed with status: ${res.status}`);
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
+      if (!res.ok) continue;
+
+      const data = await res.json();
+      if (!data.routes || data.routes.length === 0) continue;
+
+      const primaryRoute = data.routes[0];
+      const rawCoords: [number, number][] = primaryRoute.geometry.coordinates;
+
+      if (!rawCoords || rawCoords.length === 0) continue;
+
+      // Convert GeoJSON [lng, lat] to Coordinates { lat, lng }
+      const pathCoordinates: Coordinates[] = rawCoords.map(([lng, lat]) => ({
+        lat,
+        lng
+      }));
+
+      const firstCoord = pathCoordinates[0];
+      const lastCoord = pathCoordinates[pathCoordinates.length - 1];
+
+      const startDistToRoad = calculateDirectDistance(start, firstCoord);
+      const endDistToRoad = calculateDirectDistance(end, lastCoord);
+
+      // If destination is more than 35km from road network (e.g. cross-ocean snapped to wrong continent), reject
+      if (endDistToRoad > 35000 || startDistToRoad > 35000) {
+        throw new Error(
+          `Route does not reach destination (endpoint is ${Math.round(endDistToRoad / 1000)} km away).`
+        );
+      }
+
+      // Connect gaps: prepend start and append end coordinates so line touches pins seamlessly
+      if (firstCoord.lat !== start.lat || firstCoord.lng !== start.lng) {
+        pathCoordinates.unshift(start);
+      }
+      if (lastCoord.lat !== end.lat || lastCoord.lng !== end.lng) {
+        pathCoordinates.push(end);
+      }
+
+      const distanceMeters = primaryRoute.distance + startDistToRoad + endDistToRoad;
+      const distanceKm = parseFloat((distanceMeters / 1000).toFixed(1));
+
+      // Calculate realistic duration based on actual profile speeds
+      let durationSeconds = primaryRoute.duration;
+      if (normProfile === 'walking') {
+        // Average walking speed: 4.8 km/h = 1.333 m/s
+        durationSeconds = Math.round(distanceMeters / 1.333);
+      } else if (normProfile === 'bike') {
+        // Average city bike speed: 18 km/h = 5.0 m/s
+        durationSeconds = Math.round(distanceMeters / 5.0);
+      }
+
+      const durationMinutes = Math.round(durationSeconds / 60);
+      const durationFormatted = formatDuration(durationSeconds);
+
+      const routeInfo: RouteInfo = {
+        coordinates: pathCoordinates,
+        distanceMeters,
+        distanceKm,
+        durationSeconds,
+        durationMinutes,
+        durationFormatted,
+        profile: normProfile
+      };
+
+      routeCache.set(cacheKey, routeInfo);
+      return routeInfo;
+    } catch {
+      // Continue to next endpoint fallback
+      continue;
     }
-
-    const data = await res.json();
-
-    if (!data.routes || data.routes.length === 0) {
-      throw new Error('No road route found between points.');
-    }
-
-    const primaryRoute = data.routes[0];
-    const rawCoords: [number, number][] = primaryRoute.geometry.coordinates;
-
-    // Convert GeoJSON [lng, lat] to Coordinates { lat, lng }
-    const pathCoordinates: Coordinates[] = rawCoords.map(([lng, lat]) => ({
-      lat,
-      lng
-    }));
-
-    const distanceMeters = primaryRoute.distance;
-    const distanceKm = parseFloat((distanceMeters / 1000).toFixed(1));
-
-    // Dynamic duration calculation based on travel profile
-    let durationSeconds = primaryRoute.duration;
-    if (profile === 'walking') {
-      // Average walking speed: 4.8 km/h = 1.333 m/s
-      durationSeconds = Math.round(distanceMeters / 1.333);
-    } else if (profile === 'cycling') {
-      // Average cycling speed: 16 km/h = 4.444 m/s
-      durationSeconds = Math.round(distanceMeters / 4.444);
-    }
-
-    const durationMinutes = Math.round(durationSeconds / 60);
-    const durationFormatted = formatDuration(durationSeconds);
-
-    const routeInfo: RouteInfo = {
-      coordinates: pathCoordinates,
-      distanceMeters,
-      distanceKm,
-      durationSeconds,
-      durationMinutes,
-      durationFormatted,
-      profile
-    };
-
-    routeCache.set(cacheKey, routeInfo);
-    return routeInfo;
-  } catch (err) {
-    console.warn('[react-map-sdk] Failed to fetch road route from OSRM, falling back to direct line:', err);
-    // Fallback: direct line between start and end
-    const directDistanceMeters = calculateDirectDistance(start, end);
-    const distanceKm = parseFloat((directDistanceMeters / 1000).toFixed(1));
-
-    let durationSeconds = Math.round((distanceKm / 60) * 3600); // approx 60 km/h driving
-    if (profile === 'walking') {
-      durationSeconds = Math.round(directDistanceMeters / 1.333);
-    } else if (profile === 'cycling') {
-      durationSeconds = Math.round(directDistanceMeters / 4.444);
-    }
-
-    const fallbackRoute: RouteInfo = {
-      coordinates: [start, end],
-      distanceMeters: directDistanceMeters,
-      distanceKm,
-      durationSeconds,
-      durationMinutes: Math.round(durationSeconds / 60),
-      durationFormatted: formatDuration(durationSeconds),
-      profile,
-      isFallback: true
-    };
-
-    return fallbackRoute;
   }
+
+  // Fallback: smooth geodesic great-circle flight path between start and end
+  console.warn(`[react-map-sdk] Routing unroutable for ${normProfile}, falling back to geodesic line.`);
+  const directDistanceMeters = calculateDirectDistance(start, end);
+  const distanceKm = parseFloat((directDistanceMeters / 1000).toFixed(1));
+
+  let durationSeconds = Math.round((distanceKm / 60) * 3600); // approx 60 km/h driving
+  if (normProfile === 'walking') {
+    durationSeconds = Math.round(directDistanceMeters / 1.333);
+  } else if (normProfile === 'bike') {
+    durationSeconds = Math.round(directDistanceMeters / 5.0);
+  }
+
+  const geodesicCoordinates = interpolateGreatCircle(start, end, 64);
+
+  const fallbackRoute: RouteInfo = {
+    coordinates: geodesicCoordinates,
+    distanceMeters: directDistanceMeters,
+    distanceKm,
+    durationSeconds,
+    durationMinutes: Math.round(durationSeconds / 60),
+    durationFormatted: formatDuration(durationSeconds),
+    profile: normProfile,
+    isFallback: true
+  };
+
+  routeCache.set(cacheKey, fallbackRoute);
+  return fallbackRoute;
+}
+
+/**
+ * Generates smooth Great-Circle (geodesic) path coordinates between two locations.
+ */
+export function interpolateGreatCircle(
+  start: Coordinates,
+  end: Coordinates,
+  numPoints = 64
+): Coordinates[] {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const toDeg = (r: number) => (r * 180) / Math.PI;
+
+  const lat1 = toRad(start.lat);
+  const lon1 = toRad(start.lng);
+  const lat2 = toRad(end.lat);
+  const lon2 = toRad(end.lng);
+
+  // Cartesian coordinates on unit sphere
+  const v1 = [
+    Math.cos(lat1) * Math.cos(lon1),
+    Math.cos(lat1) * Math.sin(lon1),
+    Math.sin(lat1)
+  ];
+  const v2 = [
+    Math.cos(lat2) * Math.cos(lon2),
+    Math.cos(lat2) * Math.sin(lon2),
+    Math.sin(lat2)
+  ];
+
+  const dot = Math.max(-1, Math.min(1, v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2]));
+  const omega = Math.acos(dot);
+
+  if (omega < 1e-6 || isNaN(omega)) {
+    return [start, end];
+  }
+
+  const sinOmega = Math.sin(omega);
+  const points: Coordinates[] = [];
+
+  for (let i = 0; i <= numPoints; i++) {
+    const f = i / numPoints;
+    const a = Math.sin((1 - f) * omega) / sinOmega;
+    const b = Math.sin(f * omega) / sinOmega;
+
+    const x = a * v1[0] + b * v2[0];
+    const y = a * v1[1] + b * v2[1];
+    const z = a * v1[2] + b * v2[2];
+
+    const lat = toDeg(Math.atan2(z, Math.sqrt(x * x + y * y)));
+    const lng = toDeg(Math.atan2(y, x));
+
+    points.push({ lat, lng });
+  }
+
+  return points;
 }
 
 /**

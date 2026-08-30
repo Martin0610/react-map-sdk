@@ -1,11 +1,18 @@
 // Export Main Components
 export { Map } from './components/Map';
+export { AddressSearch } from './components/AddressSearch';
 
 // Export Types
 export type {
+  AddressDetails,
+  AddressSearchProps,
   Coordinates,
+  GeocodeOptions,
+  GeocodeResult,
   MapProps,
+  ReverseGeocodeOptions,
   RouteInfo,
+  TravelProfile,
   ValidationResult
 } from './types/map';
 
@@ -34,5 +41,12 @@ export {
 export {
   fetchRoadRoute,
   calculateDirectDistance,
+  interpolateGreatCircle,
+  normalizeTravelProfile,
   formatDuration
 } from './utils/routing';
+
+export {
+  geocodeAddress,
+  reverseGeocode
+} from './utils/geocoding';
