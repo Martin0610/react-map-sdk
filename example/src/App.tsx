@@ -278,9 +278,6 @@ export const App: React.FC = () => {
           <MapIcon size={20} color="#2563eb" />
           <span>React Map SDK</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          <span className="free-badge">100% Free & Zero Keys</span>
-        </div>
       </header>
 
       {/* Mode Switcher */}
