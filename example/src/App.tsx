@@ -9,6 +9,21 @@ import {
   type RouteInfo,
   type TravelProfile
 } from 'react-map-sdk';
+import {
+  Map as MapIcon,
+  MapPin,
+  Car,
+  Bike,
+  Footprints,
+  Crosshair,
+  Flag,
+  Plane,
+  ArrowLeftRight,
+  Code,
+  Copy,
+  Check,
+  X
+} from 'lucide-react';
 import './App.css';
 
 type Mode = 'map-only' | 'start-only' | 'end-only' | 'both';
@@ -220,10 +235,10 @@ export const App: React.FC = () => {
     }
   };
 
-  const getProfileIcon = (p: TravelProfile) => {
-    if (p === 'walking') return '🚶';
-    if (p === 'bike' || p === 'cycling') return '🏍️';
-    return '🚗';
+  const renderProfileIcon = (p: TravelProfile, size = 14) => {
+    if (p === 'walking') return <Footprints size={size} style={{ display: 'inline', verticalAlign: 'middle' }} />;
+    if (p === 'bike' || p === 'cycling') return <Bike size={size} style={{ display: 'inline', verticalAlign: 'middle' }} />;
+    return <Car size={size} style={{ display: 'inline', verticalAlign: 'middle' }} />;
   };
 
   const handleSwapPoints = () => {
@@ -259,8 +274,8 @@ export const App: React.FC = () => {
     <div className="minimal-app">
       {/* Top Header */}
       <header className="top-header">
-        <div className="brand-title">
-          <span>🗺️</span>
+        <div className="brand-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <MapIcon size={20} color="#2563eb" />
           <span>React Map SDK</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
@@ -313,13 +328,19 @@ export const App: React.FC = () => {
       <div className="map-frame-card">
         <div className="map-floating-overlay">
           <span className="status-dot"></span>
-          <span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
             {mode === 'map-only' && `Zoom ${zoom} • Click to reverse geocode`}
             {mode === 'start-only' && `${startName}`}
             {mode === 'end-only' && `${endName}`}
             {mode === 'both' &&
               (routeInfo
-                ? `${startName} → ${endName} • ${getProfileIcon(profile)} ${routeInfo.durationFormatted} (${routeInfo.distanceKm} km)`
+                ? (
+                  <>
+                    <span>{startName} → {endName} •</span>
+                    {renderProfileIcon(profile, 14)}
+                    <span>{routeInfo.durationFormatted} ({routeInfo.distanceKm} km)</span>
+                  </>
+                )
                 : `Next click sets ${clickTarget === 'start' ? 'Origin' : 'Destination'}`)}
           </span>
         </div>
@@ -352,7 +373,7 @@ export const App: React.FC = () => {
       {/* Reverse Geocode Info Toast/Banner */}
       {lastClickedAddress && (
         <div className="reverse-geocode-banner">
-          <span style={{ fontSize: '1.1rem' }}>📍</span>
+          <MapPin size={18} color="#0284c7" />
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#0369a1', textTransform: 'uppercase' }}>
               {isGeocodingClick ? 'Reverse Geocoding...' : 'Reverse Geocoded Location'}
@@ -363,9 +384,10 @@ export const App: React.FC = () => {
           </div>
           <button
             onClick={() => setLastClickedAddress(null)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0284c7', fontSize: '14px' }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0284c7', display: 'flex', alignItems: 'center' }}
+            title="Dismiss"
           >
-            ✕
+            <X size={14} />
           </button>
         </div>
       )}
@@ -425,15 +447,17 @@ export const App: React.FC = () => {
               {(mode === 'start-only' || mode === 'both') && (
                 <div style={{ marginBottom: mode === 'both' ? '1.25rem' : '0' }}>
                   <div className="card-title-row">
-                    <span className="card-title-text" style={{ color: '#059669' }}>
-                      📍 Origin (A)
+                    <span className="card-title-text" style={{ color: '#059669', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <MapPin size={16} color="#059669" /> Origin (A)
                     </span>
                     {mode === 'both' && (
                       <button
                         className="target-badge-btn target-badge-emerald"
                         onClick={() => setClickTarget('start')}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}
                       >
-                        {clickTarget === 'start' ? '🎯 Active Click Target' : 'Set Click Target'}
+                        {clickTarget === 'start' && <Crosshair size={13} />}
+                        {clickTarget === 'start' ? 'Active Click Target' : 'Set Click Target'}
                       </button>
                     )}
                   </div>
@@ -473,15 +497,17 @@ export const App: React.FC = () => {
               {(mode === 'end-only' || mode === 'both') && (
                 <div>
                   <div className="card-title-row">
-                    <span className="card-title-text" style={{ color: '#e11d48' }}>
-                      🏁 Destination (B)
+                    <span className="card-title-text" style={{ color: '#e11d48', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <Flag size={16} color="#e11d48" /> Destination (B)
                     </span>
                     {mode === 'both' && (
                       <button
                         className="target-badge-btn target-badge-rose"
                         onClick={() => setClickTarget('end')}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}
                       >
-                        {clickTarget === 'end' ? '🎯 Active Click Target' : 'Set Click Target'}
+                        {clickTarget === 'end' && <Crosshair size={13} />}
+                        {clickTarget === 'end' ? 'Active Click Target' : 'Set Click Target'}
                       </button>
                     )}
                   </div>
@@ -531,20 +557,23 @@ export const App: React.FC = () => {
                   <button
                     className={`profile-btn ${profile === 'car' || profile === 'driving' ? 'active' : ''}`}
                     onClick={() => handleProfileChange('car')}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}
                   >
-                    🚗 Car
+                    <Car size={15} /> Car
                   </button>
                   <button
                     className={`profile-btn ${profile === 'bike' || profile === 'cycling' ? 'active' : ''}`}
                     onClick={() => handleProfileChange('bike')}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}
                   >
-                    🏍️ Bike
+                    <Bike size={15} /> Bike
                   </button>
                   <button
                     className={`profile-btn ${profile === 'walking' ? 'active' : ''}`}
                     onClick={() => handleProfileChange('walking')}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}
                   >
-                    🚶 Walking
+                    <Footprints size={15} /> Walking
                   </button>
                 </div>
 
@@ -562,7 +591,7 @@ export const App: React.FC = () => {
                     alignItems: 'center',
                     gap: '0.5rem'
                   }}>
-                    <span>✈️</span>
+                    <Plane size={16} color="#b45309" />
                     <div>
                       <b>Direct Great-Circle Path:</b> No continuous overland road route exists between these locations (e.g. crossing oceans or non-routable terrain).
                     </div>
@@ -632,8 +661,8 @@ export const App: React.FC = () => {
                 {routeInfo && (
                   <div className="route-insights-card">
                     <div className="route-insight-row">
-                      <span className="route-insight-label">
-                        <span>🟢</span> From
+                      <span className="route-insight-label" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <MapPin size={14} color="#059669" /> From
                       </span>
                       <span className="route-insight-val" title={startName}>
                         {startName.split(',')[0]}
@@ -641,8 +670,8 @@ export const App: React.FC = () => {
                     </div>
 
                     <div className="route-insight-row">
-                      <span className="route-insight-label">
-                        <span>🏁</span> To
+                      <span className="route-insight-label" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <Flag size={14} color="#e11d48" /> To
                       </span>
                       <span className="route-insight-val" title={endName}>
                         {endName.split(',')[0]}
@@ -650,7 +679,7 @@ export const App: React.FC = () => {
                     </div>
 
                     <button className="btn-swap" onClick={handleSwapPoints}>
-                      <span>⇄</span> Swap Origin & Destination
+                      <ArrowLeftRight size={14} /> Swap Origin & Destination
                     </button>
                   </div>
                 )}
@@ -663,13 +692,18 @@ export const App: React.FC = () => {
       {/* Minimal Collapsible Code View */}
       <div className="code-accordion">
         <div className="code-accordion-header">
-          <span className="code-title">React Component Code</span>
+          <span className="code-title" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <Code size={15} color="#64748b" />
+            React Component Code
+          </span>
           <div style={{ display: 'flex', gap: '0.4rem' }}>
-            <button className="btn-copy" onClick={() => setShowCode(!showCode)}>
+            <button className="btn-copy" onClick={() => setShowCode(!showCode)} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+              <Code size={13} />
               {showCode ? 'Hide Code' : 'View Code'}
             </button>
-            <button className="btn-copy" onClick={handleCopy}>
-              {copied ? '✓ Copied' : 'Copy JSX'}
+            <button className="btn-copy" onClick={handleCopy} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+              {copied ? <Check size={13} color="#16a34a" /> : <Copy size={13} />}
+              {copied ? 'Copied' : 'Copy JSX'}
             </button>
           </div>
         </div>

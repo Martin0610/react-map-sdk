@@ -179,11 +179,13 @@ export const AddressSearch: React.FC<AddressSearchProps> = ({
             color: '#64748b',
             display: 'flex',
             alignItems: 'center',
-            fontSize: '14px',
             userSelect: 'none'
           }}
         >
-          🔍
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.3-4.3" />
+          </svg>
         </span>
 
         <input
@@ -242,12 +244,17 @@ export const AddressSearch: React.FC<AddressSearchProps> = ({
               padding: '4px 10px',
               cursor: 'pointer',
               color: '#94a3b8',
-              fontSize: '14px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               lineHeight: 1
             }}
             title="Clear search"
           >
-            ✕
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
           </button>
         )}
       </div>
@@ -289,7 +296,12 @@ export const AddressSearch: React.FC<AddressSearchProps> = ({
                   transition: 'background-color 0.1s ease'
                 }}
               >
-                <span style={{ fontSize: '14px', marginTop: '2px', color: '#64748b' }}>📍</span>
+                <span style={{ marginTop: '2px', color: '#64748b', display: 'flex', alignItems: 'center' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0" />
+                    <circle cx="12" cy="10" r="3" />
+                  </svg>
+                </span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div
                     style={{
