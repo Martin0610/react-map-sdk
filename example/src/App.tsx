@@ -124,13 +124,50 @@ export const App: React.FC = () => {
       const geo = await reverseGeocode(coords);
       const resolved = geo ? (geo.name || geo.displayName.split(',')[0].trim()) : `My Location (${coords.lat}, ${coords.lng})`;
       setStartName(resolved);
-      setLastClickedAddress(geo ? geo.displayName : `${coords.lat}, ${coords.lng}`);
+      
+      const accText = coords.accuracy
+        ? (coords.accuracy > 800 ? `~${(coords.accuracy / 1000).toFixed(1)} km (Desktop Network IP)` : `±${coords.accuracy} m`)
+        : '';
+      
+      const addrWithAcc = geo
+        ? `${geo.displayName}${accText ? ` • Accuracy: ${accText}` : ''}`
+        : `${coords.lat}, ${coords.lng}${accText ? ` • Accuracy: ${accText}` : ''}`;
+      
+      setLastClickedAddress(addrWithAcc);
       setClickTarget('end');
     } catch (err) {
       console.warn('Geolocation error:', err);
-      alert('Could not detect your current GPS location. Please ensure location permissions are enabled in your browser.');
+      alert('Could not detect your GPS location. Please ensure location access is allowed in your browser.');
     } finally {
       setIsLocatingUser(false);
+    }
+  };
+
+  const handleStartDragEnd = async (newCoords: Coordinates) => {
+    setStart(newCoords);
+    setActivePreset(-1);
+    try {
+      const geo = await reverseGeocode(newCoords);
+      if (geo) {
+        setStartName(geo.name || geo.displayName.split(',')[0].trim());
+        setLastClickedAddress(geo.displayName);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleEndDragEnd = async (newCoords: Coordinates) => {
+    setEnd(newCoords);
+    setActivePreset(-1);
+    try {
+      const geo = await reverseGeocode(newCoords);
+      if (geo) {
+        setEndName(geo.name || geo.displayName.split(',')[0].trim());
+        setLastClickedAddress(geo.displayName);
+      }
+    } catch {
+      // ignore
     }
   };
 
@@ -381,6 +418,8 @@ export const App: React.FC = () => {
             onClick={handleMapClick}
             showUserLocation={true}
             showLocateControl={true}
+            draggableMarkers={true}
+            onStartDragEnd={handleStartDragEnd}
             height="520px"
           />
         )}
@@ -391,6 +430,8 @@ export const App: React.FC = () => {
             onClick={handleMapClick}
             showUserLocation={true}
             showLocateControl={true}
+            draggableMarkers={true}
+            onEndDragEnd={handleEndDragEnd}
             height="520px"
           />
         )}
@@ -407,6 +448,9 @@ export const App: React.FC = () => {
             onClick={handleMapClick}
             showUserLocation={true}
             showLocateControl={true}
+            draggableMarkers={true}
+            onStartDragEnd={handleStartDragEnd}
+            onEndDragEnd={handleEndDragEnd}
             height="520px"
           />
         )}

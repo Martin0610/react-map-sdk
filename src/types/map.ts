@@ -274,6 +274,22 @@ export interface MapProps {
    * Callback fired when the user's live GPS coordinates are detected or updated.
    */
   onUserLocationChange?: (coords: Coordinates) => void;
+
+  /**
+   * Whether map marker pins can be dragged interactively to adjust location.
+   * Default: true
+   */
+  draggableMarkers?: boolean;
+
+  /**
+   * Callback fired when the Start (A) marker is dragged and dropped to a new position.
+   */
+  onStartDragEnd?: (coords: Coordinates) => void;
+
+  /**
+   * Callback fired when the End (B) marker is dragged and dropped to a new position.
+   */
+  onEndDragEnd?: (coords: Coordinates) => void;
 }
 
 /**

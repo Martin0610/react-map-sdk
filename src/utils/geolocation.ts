@@ -10,33 +10,81 @@ const DEFAULT_GEO_OPTIONS: PositionOptions = {
   maximumAge: 0
 };
 
+export interface LiveLocationResult extends Coordinates {
+  accuracy?: number; // accuracy radius in meters
+  source?: 'gps' | 'ip';
+}
+
 /**
- * Fetches the user's current GPS location coordinates via HTML5 Geolocation API.
+ * Fetches the user's current location coordinates via HTML5 Geolocation API with IP fallback.
  * 100% free with zero API keys required.
  *
  * @param options Browser PositionOptions (enableHighAccuracy, timeout, maximumAge)
- * @returns Promise resolving to { lat, lng } coordinates
+ * @returns Promise resolving to { lat, lng, accuracy, source } coordinates
  */
-export function getCurrentLocation(options: PositionOptions = DEFAULT_GEO_OPTIONS): Promise<Coordinates> {
+export function getCurrentLocation(options: PositionOptions = DEFAULT_GEO_OPTIONS): Promise<LiveLocationResult> {
   return new Promise((resolve, reject) => {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      reject(new Error('Geolocation is not supported by your browser or environment.'));
-      return;
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          resolve({
+            lat: parseFloat(position.coords.latitude.toFixed(6)),
+            lng: parseFloat(position.coords.longitude.toFixed(6)),
+            accuracy: position.coords.accuracy ? Math.round(position.coords.accuracy) : undefined,
+            source: 'gps'
+          });
+        },
+        async (error) => {
+          // If browser GPS fails or is denied, attempt free IP Geolocation fallback
+          try {
+            const ipCoords = await fetchIpLocation();
+            if (ipCoords) {
+              resolve(ipCoords);
+              return;
+            }
+          } catch {
+            // ignore IP fallback error and reject with original GPS error
+          }
+          reject(error);
+        },
+        { ...DEFAULT_GEO_OPTIONS, ...options }
+      );
+    } else {
+      // Browser does not support geolocation, try IP fallback
+      fetchIpLocation()
+        .then((coords) => {
+          if (coords) resolve(coords);
+          else reject(new Error('Geolocation is not supported by your browser or environment.'));
+        })
+        .catch((err) => reject(err));
     }
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        resolve({
-          lat: parseFloat(position.coords.latitude.toFixed(6)),
-          lng: parseFloat(position.coords.longitude.toFixed(6))
-        });
-      },
-      (error) => {
-        reject(error);
-      },
-      { ...DEFAULT_GEO_OPTIONS, ...options }
-    );
   });
+}
+
+/**
+ * Helper to fetch approximate location via free public IP lookup service.
+ */
+async function fetchIpLocation(): Promise<LiveLocationResult | null> {
+  try {
+    const res = await fetch('https://get.geojs.io/v1/ip/geo.json', {
+      headers: { Accept: 'application/json' }
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const lat = parseFloat(data.latitude);
+    const lng = parseFloat(data.longitude);
+    if (!isNaN(lat) && !isNaN(lng)) {
+      return {
+        lat: parseFloat(lat.toFixed(6)),
+        lng: parseFloat(lng.toFixed(6)),
+        accuracy: 10000,
+        source: 'ip'
+      };
+    }
+  } catch {
+    // Network or parse error
+  }
+  return null;
 }
 
 /**

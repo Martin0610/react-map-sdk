@@ -90,13 +90,17 @@ export const Map: React.FC<MapProps> = ({
   showUserLocation = false,
   trackUserLocation = false,
   showLocateControl = false,
-  onUserLocationChange
+  onUserLocationChange,
+  draggableMarkers = true,
+  onStartDragEnd,
+  onEndDragEnd
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const startMarkerRef = useRef<L.Marker | null>(null);
   const endMarkerRef = useRef<L.Marker | null>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
+  const accuracyCircleRef = useRef<L.Circle | null>(null);
   const polylineRef = useRef<L.Polyline | null>(null);
   const routeCasingRef = useRef<L.Polyline | null>(null);
   const routeFillRef = useRef<L.Polyline | null>(null);
@@ -116,6 +120,12 @@ export const Map: React.FC<MapProps> = ({
 
   const onUserLocationChangeRef = useRef(onUserLocationChange);
   onUserLocationChangeRef.current = onUserLocationChange;
+
+  const onStartDragEndRef = useRef(onStartDragEnd);
+  onStartDragEndRef.current = onStartDragEnd;
+
+  const onEndDragEndRef = useRef(onEndDragEnd);
+  onEndDragEndRef.current = onEndDragEnd;
 
   const [isClient, setIsClient] = useState(false);
 
@@ -246,14 +256,27 @@ export const Map: React.FC<MapProps> = ({
       if (startMarkerRef.current) {
         startMarkerRef.current.setLatLng([start.lat, start.lng]);
         startMarkerRef.current.setPopupContent(
-          `<div style="font-family:system-ui,sans-serif;padding:2px 4px;"><b style="color:#047857;">${startLabel}</b><br/><span style="font-size:12px;color:#475569;">Lat: ${start.lat.toFixed(4)}, Lng: ${start.lng.toFixed(4)}</span></div>`
+          `<div style="font-family:system-ui,sans-serif;padding:2px 4px;"><b style="color:#047857;">${startLabel}</b><br/><span style="font-size:12px;color:#475569;">Lat: ${start.lat.toFixed(4)}, Lng: ${start.lng.toFixed(4)}</span><br/><span style="font-size:11px;color:#059669;font-style:italic;">💡 Drag pin to adjust exact location</span></div>`
         );
       } else {
-        const marker = L.marker([start.lat, start.lng], { icon: startIcon }).addTo(map);
+        const marker = L.marker([start.lat, start.lng], {
+          icon: startIcon,
+          draggable: draggableMarkers
+        }).addTo(map);
         marker.bindTooltip(`<b>${startLabel}</b>`, { direction: 'top', offset: [0, -42] });
         marker.bindPopup(
-          `<div style="font-family:system-ui,sans-serif;padding:2px 4px;"><b style="color:#047857;">${startLabel}</b><br/><span style="font-size:12px;color:#475569;">Lat: ${start.lat.toFixed(4)}, Lng: ${start.lng.toFixed(4)}</span></div>`
+          `<div style="font-family:system-ui,sans-serif;padding:2px 4px;"><b style="color:#047857;">${startLabel}</b><br/><span style="font-size:12px;color:#475569;">Lat: ${start.lat.toFixed(4)}, Lng: ${start.lng.toFixed(4)}</span><br/><span style="font-size:11px;color:#059669;font-style:italic;">💡 Drag pin to adjust exact location</span></div>`
         );
+        marker.on('dragend', (e: L.LeafletEvent) => {
+          const latLng = (e.target as L.Marker).getLatLng();
+          const newCoords = {
+            lat: parseFloat(latLng.lat.toFixed(4)),
+            lng: parseFloat(latLng.lng.toFixed(4))
+          };
+          if (onStartDragEndRef.current) {
+            onStartDragEndRef.current(newCoords);
+          }
+        });
         startMarkerRef.current = marker;
       }
     } else {
@@ -274,14 +297,27 @@ export const Map: React.FC<MapProps> = ({
       if (endMarkerRef.current) {
         endMarkerRef.current.setLatLng([end.lat, end.lng]);
         endMarkerRef.current.setPopupContent(
-          `<div style="font-family:system-ui,sans-serif;padding:2px 4px;"><b style="color:#be123c;">${endLabel}</b><br/><span style="font-size:12px;color:#475569;">Lat: ${end.lat.toFixed(4)}, Lng: ${end.lng.toFixed(4)}</span></div>`
+          `<div style="font-family:system-ui,sans-serif;padding:2px 4px;"><b style="color:#be123c;">${endLabel}</b><br/><span style="font-size:12px;color:#475569;">Lat: ${end.lat.toFixed(4)}, Lng: ${end.lng.toFixed(4)}</span><br/><span style="font-size:11px;color:#e11d48;font-style:italic;">💡 Drag pin to adjust exact location</span></div>`
         );
       } else {
-        const marker = L.marker([end.lat, end.lng], { icon: endIcon }).addTo(map);
+        const marker = L.marker([end.lat, end.lng], {
+          icon: endIcon,
+          draggable: draggableMarkers
+        }).addTo(map);
         marker.bindTooltip(`<b>${endLabel}</b>`, { direction: 'top', offset: [0, -42] });
         marker.bindPopup(
-          `<div style="font-family:system-ui,sans-serif;padding:2px 4px;"><b style="color:#be123c;">${endLabel}</b><br/><span style="font-size:12px;color:#475569;">Lat: ${end.lat.toFixed(4)}, Lng: ${end.lng.toFixed(4)}</span></div>`
+          `<div style="font-family:system-ui,sans-serif;padding:2px 4px;"><b style="color:#be123c;">${endLabel}</b><br/><span style="font-size:12px;color:#475569;">Lat: ${end.lat.toFixed(4)}, Lng: ${end.lng.toFixed(4)}</span><br/><span style="font-size:11px;color:#e11d48;font-style:italic;">💡 Drag pin to adjust exact location</span></div>`
         );
+        marker.on('dragend', (e: L.LeafletEvent) => {
+          const latLng = (e.target as L.Marker).getLatLng();
+          const newCoords = {
+            lat: parseFloat(latLng.lat.toFixed(4)),
+            lng: parseFloat(latLng.lng.toFixed(4))
+          };
+          if (onEndDragEndRef.current) {
+            onEndDragEndRef.current(newCoords);
+          }
+        });
         endMarkerRef.current = marker;
       }
     } else {
@@ -318,16 +354,15 @@ export const Map: React.FC<MapProps> = ({
             if (routeCasingRef.current) {
               routeCasingRef.current.setLatLngs(roadLatLngs);
               routeCasingRef.current.setStyle({
-                color: '#1d4ed8',
+                color: '#1e3a8a',
                 weight: routeWeight + 3,
-                opacity: 0.85,
-                dashArray: ''
+                opacity: 0.95
               });
             } else {
               routeCasingRef.current = L.polyline(roadLatLngs, {
-                color: '#1d4ed8',
+                color: '#1e3a8a',
                 weight: routeWeight + 3,
-                opacity: 0.85,
+                opacity: 0.95,
                 lineCap: 'round',
                 lineJoin: 'round'
               }).addTo(map);
@@ -337,34 +372,24 @@ export const Map: React.FC<MapProps> = ({
             routeCasingRef.current = null;
           }
 
-          // Layer 2: Main route line (solid for real road, dashed for flight/unroutable direct line)
-          const effectiveColor = isFallback ? '#f59e0b' : routeColor;
-          const effectiveDash = isFallback ? '8, 8' : undefined;
+          // Layer 2: Main bright polyline
+          const mainLineStyle: L.PolylineOptions = {
+            color: isFallback ? '#d97706' : routeColor,
+            weight: routeWeight,
+            opacity: 1,
+            lineCap: 'round',
+            lineJoin: 'round',
+            dashArray: isFallback ? '8, 8' : undefined
+          };
 
           if (routeFillRef.current) {
             routeFillRef.current.setLatLngs(roadLatLngs);
-            routeFillRef.current.setStyle({
-              color: effectiveColor,
-              weight: isFallback ? 3 : routeWeight,
-              opacity: 0.95,
-              dashArray: effectiveDash || ''
-            });
+            routeFillRef.current.setStyle(mainLineStyle);
           } else {
-            routeFillRef.current = L.polyline(roadLatLngs, {
-              color: effectiveColor,
-              weight: isFallback ? 3 : routeWeight,
-              opacity: 0.95,
-              dashArray: effectiveDash,
-              lineCap: 'round',
-              lineJoin: 'round'
-            }).addTo(map);
+            routeFillRef.current = L.polyline(roadLatLngs, mainLineStyle).addTo(map);
           }
 
-          if (onRouteCalculatedRef.current) {
-            onRouteCalculatedRef.current(routeInfo);
-          }
-
-          // Auto-fit bounds to the road trajectory
+          // Fit bounds to full road trajectory
           if (!center) {
             const bounds = L.latLngBounds(roadLatLngs);
             map.fitBounds(bounds, {
@@ -372,9 +397,13 @@ export const Map: React.FC<MapProps> = ({
               maxZoom: 16
             });
           }
+
+          if (onRouteCalculatedRef.current) {
+            onRouteCalculatedRef.current(routeInfo);
+          }
         });
       } else if (showLine) {
-        // Fallback: Direct Straight Line
+        // Clear road layers
         clearRoadRoute(map);
 
         const lineCoords: [number, number][] = [
@@ -382,9 +411,10 @@ export const Map: React.FC<MapProps> = ({
           [end.lat, end.lng]
         ];
 
-        const effectiveDash = lineDashArray !== undefined
-          ? lineDashArray
-          : (lineStyle === 'solid' ? '' : '6, 8');
+        let effectiveDash = lineDashArray;
+        if (!effectiveDash && lineStyle === 'dashed') {
+          effectiveDash = '6, 8';
+        }
 
         if (polylineRef.current) {
           polylineRef.current.setLatLngs(lineCoords);
@@ -464,7 +494,8 @@ export const Map: React.FC<MapProps> = ({
     lineWeight,
     lineStyle,
     lineDashArray,
-    lineOpacity
+    lineOpacity,
+    draggableMarkers
   ]);
 
   // Handle Live User Location Tracking
@@ -474,6 +505,10 @@ export const Map: React.FC<MapProps> = ({
         mapInstanceRef.current.removeLayer(userMarkerRef.current);
         userMarkerRef.current = null;
       }
+      if (accuracyCircleRef.current && mapInstanceRef.current) {
+        mapInstanceRef.current.removeLayer(accuracyCircleRef.current);
+        accuracyCircleRef.current = null;
+      }
       return;
     }
 
@@ -481,7 +516,7 @@ export const Map: React.FC<MapProps> = ({
     const map = mapInstanceRef.current;
     if (!L || !map) return;
 
-    const updateUserMarker = (coords: Coordinates) => {
+    const updateUserMarker = (coords: Coordinates & { accuracy?: number }) => {
       if (!mapInstanceRef.current || !leafletModuleRef.current) return;
       const leaflet = leafletModuleRef.current;
       const currentMap = mapInstanceRef.current;
@@ -493,6 +528,21 @@ export const Map: React.FC<MapProps> = ({
           icon: getUserLocationDivIcon(leaflet),
           zIndexOffset: 1000
         }).addTo(currentMap);
+      }
+
+      if (coords.accuracy && coords.accuracy > 30) {
+        if (accuracyCircleRef.current) {
+          accuracyCircleRef.current.setLatLng([coords.lat, coords.lng]);
+          accuracyCircleRef.current.setRadius(coords.accuracy);
+        } else {
+          accuracyCircleRef.current = leaflet.circle([coords.lat, coords.lng], {
+            radius: coords.accuracy,
+            color: '#3b82f6',
+            fillColor: '#3b82f6',
+            fillOpacity: 0.12,
+            weight: 1
+          }).addTo(currentMap);
+        }
       }
 
       if (trackUserLocation) {
@@ -532,6 +582,21 @@ export const Map: React.FC<MapProps> = ({
             icon: getUserLocationDivIcon(L),
             zIndexOffset: 1000
           }).addTo(map);
+        }
+
+        if (coords.accuracy && coords.accuracy > 30) {
+          if (accuracyCircleRef.current) {
+            accuracyCircleRef.current.setLatLng([coords.lat, coords.lng]);
+            accuracyCircleRef.current.setRadius(coords.accuracy);
+          } else {
+            accuracyCircleRef.current = L.circle([coords.lat, coords.lng], {
+              radius: coords.accuracy,
+              color: '#3b82f6',
+              fillColor: '#3b82f6',
+              fillOpacity: 0.12,
+              weight: 1
+            }).addTo(map);
+          }
         }
 
         map.flyTo([coords.lat, coords.lng], 15, { animate: true, duration: 1.2 });
