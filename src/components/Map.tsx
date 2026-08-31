@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type L from 'leaflet';
-import type { Coordinates, GeocodeResult, MapProps } from '../types/map';
+import type { GeocodeResult, MapProps } from '../types/map';
 import { validateCoordinates } from '../utils/validation';
 import { calculateInitialCenter, calculateInitialZoom } from '../utils/bounds';
 import { getStartDivIcon, getEndDivIcon } from '../utils/icons';
@@ -9,7 +9,9 @@ import { reverseGeocode } from '../utils/geocoding';
 import {
   getCurrentLocation,
   getUserLocationDivIcon,
-  watchLiveLocation
+  watchLiveLocation,
+  getCachedLocation,
+  type LiveLocationResult
 } from '../utils/geolocation';
 import { AddressSearch } from './AddressSearch';
 
@@ -39,10 +41,17 @@ function ensureLeafletCss(): void {
     const style = document.createElement('style');
     style.id = PULSE_STYLE_ID;
     style.textContent = `
+      .react-map-sdk-user-location-marker,
+      .react-map-sdk-start-marker,
+      .react-map-sdk-end-marker {
+        background: transparent !important;
+        border: none !important;
+        outline: none !important;
+      }
       @keyframes react-map-pulse {
-        0% { transform: scale(0.95); opacity: 0.85; }
-        70% { transform: scale(2.3); opacity: 0; }
-        100% { transform: scale(2.3); opacity: 0; }
+        0% { transform: scale(0.85); opacity: 0.9; }
+        60% { transform: scale(2.2); opacity: 0.15; }
+        100% { transform: scale(2.5); opacity: 0; }
       }
     `;
     document.head.appendChild(style);
@@ -82,6 +91,7 @@ export const Map: React.FC<MapProps> = ({
   fitBoundsPadding = [50, 50],
   onRouteCalculated,
   onClick,
+  onZoomChange,
   onMapReady,
   showSearch = false,
   searchPlaceholder = 'Search address, city, or place...',
@@ -108,9 +118,13 @@ export const Map: React.FC<MapProps> = ({
   const isRoutingActiveRef = useRef<number>(0);
 
   const [isLocating, setIsLocating] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
 
   const onClickRef = useRef(onClick);
   onClickRef.current = onClick;
+
+  const onZoomChangeRef = useRef(onZoomChange);
+  onZoomChangeRef.current = onZoomChange;
 
   const onRouteCalculatedRef = useRef(onRouteCalculated);
   onRouteCalculatedRef.current = onRouteCalculated;
@@ -188,8 +202,22 @@ export const Map: React.FC<MapProps> = ({
           }
         });
 
+        // Handle map zoom events (mouse scroll wheel, +/- buttons, double click, pinch gesture)
+        map.on('zoomend', () => {
+          if (onZoomChangeRef.current) {
+            onZoomChangeRef.current(map.getZoom());
+          }
+        });
+        map.on('zoom', () => {
+          if (onZoomChangeRef.current) {
+            onZoomChangeRef.current(Math.round(map.getZoom()));
+          }
+        });
+
         // Initial render of markers, route, and bounds
         updateMarkersAndRoute(L, map, true);
+
+        setMapReady(true);
 
         if (onMapReady) {
           onMapReady(map);
@@ -203,12 +231,15 @@ export const Map: React.FC<MapProps> = ({
 
     return () => {
       isMounted = false;
+      setMapReady(false);
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
       }
       startMarkerRef.current = null;
       endMarkerRef.current = null;
+      userMarkerRef.current = null;
+      accuracyCircleRef.current = null;
       polylineRef.current = null;
       routeCasingRef.current = null;
       routeFillRef.current = null;
@@ -449,12 +480,21 @@ export const Map: React.FC<MapProps> = ({
       clearDirectLine(map);
     }
 
-    // 4. Handle bounds / center adjustment when not routing
+    // 4. Handle bounds / center / zoom adjustment when not routing
     if (center && validateCoordinates(center, 'center').isValid) {
       if (!isInitial) {
-        map.setView([center.lat, center.lng], zoom ?? map.getZoom());
+        const currentCenter = map.getCenter();
+        const dist = Math.abs(currentCenter.lat - center.lat) + Math.abs(currentCenter.lng - center.lng);
+        const targetZoom = zoom ?? map.getZoom();
+        if (dist > 0.0001 || (zoom !== undefined && map.getZoom() !== zoom)) {
+          map.setView([center.lat, center.lng], targetZoom);
+        }
       }
       return;
+    }
+
+    if (zoom !== undefined && map.getZoom() !== zoom && !isInitial) {
+      map.setZoom(zoom);
     }
 
     if ((!startValid || !endValid) && !isInitial) {
@@ -471,11 +511,12 @@ export const Map: React.FC<MapProps> = ({
     const map = mapInstanceRef.current;
     const L = leafletModuleRef.current;
 
-    if (!map || !L) return;
+    if (!map || !L || !mapReady) return;
 
     updateMarkersAndRoute(L, map, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    mapReady,
     start?.lat,
     start?.lng,
     startName,
@@ -500,7 +541,7 @@ export const Map: React.FC<MapProps> = ({
 
   // Handle Live User Location Tracking
   useEffect(() => {
-    if (!isClient || (!showUserLocation && !trackUserLocation)) {
+    if (!isClient || !mapReady || (!showUserLocation && !trackUserLocation)) {
       if (userMarkerRef.current && mapInstanceRef.current) {
         mapInstanceRef.current.removeLayer(userMarkerRef.current);
         userMarkerRef.current = null;
@@ -516,18 +557,37 @@ export const Map: React.FC<MapProps> = ({
     const map = mapInstanceRef.current;
     if (!L || !map) return;
 
-    const updateUserMarker = (coords: Coordinates & { accuracy?: number }) => {
+    const updateUserMarker = (coords: LiveLocationResult) => {
       if (!mapInstanceRef.current || !leafletModuleRef.current) return;
       const leaflet = leafletModuleRef.current;
       const currentMap = mapInstanceRef.current;
 
+      const isApproxIp = coords.source === 'ip';
+      const formattedAcc = coords.accuracy
+        ? (coords.accuracy > 800 ? `~${(coords.accuracy / 1000).toFixed(1)} km` : `±${coords.accuracy} m`)
+        : null;
+
+      const popupHtml = `
+        <div style="font-family:system-ui,-apple-system,sans-serif;padding:2px 4px;">
+          <b style="color:#2563eb;display:flex;align-items:center;gap:4px;">
+            📍 Your Current Location ${isApproxIp ? '<span style="font-size:10px;font-weight:normal;color:#64748b;">(Approx IP)</span>' : ''}
+          </b>
+          <span style="font-size:12px;color:#475569;">Lat: ${coords.lat.toFixed(4)}, Lng: ${coords.lng.toFixed(4)}</span>
+          ${formattedAcc ? `<br/><span style="font-size:11px;color:#64748b;">Accuracy: ${formattedAcc}</span>` : ''}
+        </div>
+      `.trim();
+
       if (userMarkerRef.current) {
         userMarkerRef.current.setLatLng([coords.lat, coords.lng]);
+        userMarkerRef.current.setPopupContent(popupHtml);
       } else {
-        userMarkerRef.current = leaflet.marker([coords.lat, coords.lng], {
+        const marker = leaflet.marker([coords.lat, coords.lng], {
           icon: getUserLocationDivIcon(leaflet),
           zIndexOffset: 1000
         }).addTo(currentMap);
+        marker.bindTooltip('<b>📍 Your Live Location</b>', { direction: 'top', offset: [0, -14] });
+        marker.bindPopup(popupHtml);
+        userMarkerRef.current = marker;
       }
 
       if (coords.accuracy && coords.accuracy > 30) {
@@ -543,6 +603,9 @@ export const Map: React.FC<MapProps> = ({
             weight: 1
           }).addTo(currentMap);
         }
+      } else if (accuracyCircleRef.current) {
+        currentMap.removeLayer(accuracyCircleRef.current);
+        accuracyCircleRef.current = null;
       }
 
       if (trackUserLocation) {
@@ -553,6 +616,12 @@ export const Map: React.FC<MapProps> = ({
         onUserLocationChangeRef.current(coords);
       }
     };
+
+    // If we have cached location in memory, render immediately with 0 delay
+    const initialCached = getCachedLocation();
+    if (initialCached) {
+      updateUserMarker(initialCached);
+    }
 
     if (trackUserLocation) {
       const unsubscribe = watchLiveLocation(
@@ -565,23 +634,59 @@ export const Map: React.FC<MapProps> = ({
         .then(updateUserMarker)
         .catch((err) => console.warn('[react-map-sdk] Failed to get user location:', err));
     }
-  }, [isClient, showUserLocation, trackUserLocation]);
+  }, [isClient, mapReady, showUserLocation, trackUserLocation]);
 
   const handleLocateUser = async () => {
     setIsLocating(true);
+    const map = mapInstanceRef.current;
+    const L = leafletModuleRef.current;
+
+    // 1. Instant response if cached location exists
+    const cached = getCachedLocation();
+    if (cached && map && L) {
+      if (userMarkerRef.current) {
+        userMarkerRef.current.setLatLng([cached.lat, cached.lng]);
+      } else {
+        const marker = L.marker([cached.lat, cached.lng], {
+          icon: getUserLocationDivIcon(L),
+          zIndexOffset: 1000
+        }).addTo(map);
+        marker.bindTooltip('<b>📍 Your Live Location</b>', { direction: 'top', offset: [0, -14] });
+        userMarkerRef.current = marker;
+      }
+      map.flyTo([cached.lat, cached.lng], Math.max(map.getZoom(), 15), { animate: true, duration: 1.0 });
+    }
+
+    // 2. Fetch fresh location and refine
     try {
       const coords = await getCurrentLocation();
-      const map = mapInstanceRef.current;
-      const L = leafletModuleRef.current;
-
       if (map && L) {
+        const isApproxIp = coords.source === 'ip';
+        const formattedAcc = coords.accuracy
+          ? (coords.accuracy > 800 ? `~${(coords.accuracy / 1000).toFixed(1)} km` : `±${coords.accuracy} m`)
+          : null;
+
+        const popupHtml = `
+          <div style="font-family:system-ui,-apple-system,sans-serif;padding:2px 4px;">
+            <b style="color:#2563eb;display:flex;align-items:center;gap:4px;">
+              📍 Your Current Location ${isApproxIp ? '<span style="font-size:10px;font-weight:normal;color:#64748b;">(Approx IP)</span>' : ''}
+            </b>
+            <span style="font-size:12px;color:#475569;">Lat: ${coords.lat.toFixed(4)}, Lng: ${coords.lng.toFixed(4)}</span>
+            ${formattedAcc ? `<br/><span style="font-size:11px;color:#64748b;">Accuracy: ${formattedAcc}</span>` : ''}
+          </div>
+        `.trim();
+
         if (userMarkerRef.current) {
           userMarkerRef.current.setLatLng([coords.lat, coords.lng]);
+          userMarkerRef.current.setPopupContent(popupHtml);
         } else {
-          userMarkerRef.current = L.marker([coords.lat, coords.lng], {
+          const marker = L.marker([coords.lat, coords.lng], {
             icon: getUserLocationDivIcon(L),
             zIndexOffset: 1000
           }).addTo(map);
+          marker.bindTooltip('<b>📍 Your Live Location</b>', { direction: 'top', offset: [0, -14] });
+          marker.bindPopup(popupHtml);
+          userMarkerRef.current = marker;
         }
 
         if (coords.accuracy && coords.accuracy > 30) {
@@ -597,9 +702,15 @@ export const Map: React.FC<MapProps> = ({
               weight: 1
             }).addTo(map);
           }
+        } else if (accuracyCircleRef.current) {
+          map.removeLayer(accuracyCircleRef.current);
+          accuracyCircleRef.current = null;
         }
 
-        map.flyTo([coords.lat, coords.lng], 15, { animate: true, duration: 1.2 });
+        map.flyTo([coords.lat, coords.lng], Math.max(map.getZoom(), 15), { animate: true, duration: 1.0 });
+        if (userMarkerRef.current) {
+          userMarkerRef.current.openPopup();
+        }
       }
 
       if (onUserLocationChangeRef.current) {

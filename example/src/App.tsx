@@ -3,7 +3,8 @@ import {
   Map,
   AddressSearch,
   reverseGeocode,
-  getCurrentLocation,
+  calculateRealisticDuration,
+  normalizeTravelProfile,
   formatDuration,
   type Coordinates,
   type GeocodeResult,
@@ -23,8 +24,7 @@ import {
   Code,
   Copy,
   Check,
-  X,
-  Navigation
+  X
 } from 'lucide-react';
 import './App.css';
 
@@ -105,56 +105,22 @@ export const App: React.FC = () => {
   // Geocoding info from last map click
   const [lastClickedAddress, setLastClickedAddress] = useState<string | null>(null);
   const [isGeocodingClick, setIsGeocodingClick] = useState(false);
-  const [isLocatingUser, setIsLocatingUser] = useState(false);
 
   // Map Only Mode State
-  const [centerCoords, setCenterCoords] = useState<Coordinates>({ lat: 12.9202, lng: 79.1325 });
+  const [centerCoords, setCenterCoords] = useState<Coordinates>(PRESETS[0].start);
   const [zoom, setZoom] = useState<number>(10);
 
   // Start & End Coordinates
   const [start, setStart] = useState<Coordinates>(PRESETS[0].start);
   const [end, setEnd] = useState<Coordinates>(PRESETS[0].end);
 
-  const handleUseCurrentLocationAsOrigin = async () => {
-    setIsLocatingUser(true);
-    try {
-      const coords = await getCurrentLocation();
-      setStart(coords);
-      setActivePreset(-1);
-      const geo = await reverseGeocode(coords);
-      const resolved = geo ? (geo.name || geo.displayName.split(',')[0].trim()) : `My Location (${coords.lat}, ${coords.lng})`;
-      setStartName(resolved);
-      
-      const accText = coords.accuracy
-        ? (coords.accuracy > 800 ? `~${(coords.accuracy / 1000).toFixed(1)} km (Desktop Network IP)` : `±${coords.accuracy} m`)
-        : '';
-      
-      const addrWithAcc = geo
-        ? `${geo.displayName}${accText ? ` • Accuracy: ${accText}` : ''}`
-        : `${coords.lat}, ${coords.lng}${accText ? ` • Accuracy: ${accText}` : ''}`;
-      
-      setLastClickedAddress(addrWithAcc);
-      setClickTarget('end');
-    } catch (err) {
-      console.warn('Geolocation error:', err);
-      alert('Could not detect your GPS location. Please ensure location access is allowed in your browser.');
-    } finally {
-      setIsLocatingUser(false);
-    }
-  };
-
   const handleStartDragEnd = async (newCoords: Coordinates) => {
     setStart(newCoords);
     setActivePreset(-1);
     try {
       const geo = await reverseGeocode(newCoords);
-      if (geo) {
-        setStartName(geo.name || geo.displayName.split(',')[0].trim());
-        setLastClickedAddress(geo.displayName);
-      }
-    } catch {
-      // ignore
-    }
+      if (geo) setStartName(geo.name || geo.displayName.split(',')[0].trim());
+    } catch { /* ignore */ }
   };
 
   const handleEndDragEnd = async (newCoords: Coordinates) => {
@@ -162,13 +128,8 @@ export const App: React.FC = () => {
     setActivePreset(-1);
     try {
       const geo = await reverseGeocode(newCoords);
-      if (geo) {
-        setEndName(geo.name || geo.displayName.split(',')[0].trim());
-        setLastClickedAddress(geo.displayName);
-      }
-    } catch {
-      // ignore
-    }
+      if (geo) setEndName(geo.name || geo.displayName.split(',')[0].trim());
+    } catch { /* ignore */ }
   };
 
   const applyPreset = (index: number) => {
@@ -188,70 +149,59 @@ export const App: React.FC = () => {
       lng: parseFloat(coords.lng.toFixed(4))
     };
 
+    const initialName = `Point (${rounded.lat}, ${rounded.lng})`;
+    setLastClickedAddress(initialName);
     setIsGeocodingClick(true);
-    let resolvedName = `Point (${rounded.lat}, ${rounded.lng})`;
 
-    try {
-      const geoResult = await reverseGeocode(rounded);
-      if (geoResult) {
-        resolvedName = geoResult.name || geoResult.displayName.split(',')[0].trim();
-        setLastClickedAddress(geoResult.displayName);
-      } else {
-        setLastClickedAddress(`${rounded.lat}, ${rounded.lng}`);
-      }
-    } catch {
-      setLastClickedAddress(`${rounded.lat}, ${rounded.lng}`);
-    } finally {
-      setIsGeocodingClick(false);
-    }
+    const targetToUpdate = clickTarget;
 
+    // 1. Immediately update coordinates for instant UI responsiveness
     if (mode === 'map-only') {
       setCenterCoords(rounded);
     } else if (mode === 'start-only') {
       setStart(rounded);
-      setStartName(resolvedName);
+      setStartName(initialName);
       setActivePreset(-1);
     } else if (mode === 'end-only') {
       setEnd(rounded);
-      setEndName(resolvedName);
+      setEndName(initialName);
       setActivePreset(-1);
     } else if (mode === 'both') {
-      if (clickTarget === 'start') {
+      if (targetToUpdate === 'start') {
         setStart(rounded);
-        setStartName(resolvedName);
+        setStartName(initialName);
         setClickTarget('end');
       } else {
         setEnd(rounded);
-        setEndName(resolvedName);
+        setEndName(initialName);
         setClickTarget('start');
       }
       setActivePreset(-1);
     }
-  };
 
-  const handleStartCoordChange = (lat: number, lng: number) => {
-    setStart({ lat, lng });
-    setActivePreset(-1);
-    if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
-      reverseGeocode({ lat, lng }).then((res) => {
-        if (res) {
-          setStartName(res.name || res.displayName.split(',')[0].trim());
-          setLastClickedAddress(res.displayName);
+    try {
+      const geoResult = await reverseGeocode(rounded);
+      if (geoResult) {
+        const resolvedName = geoResult.name || geoResult.displayName.split(',')[0].trim();
+        setLastClickedAddress(geoResult.displayName);
+        if (mode === 'map-only') {
+          // logic
+        } else if (mode === 'start-only') {
+          setStartName(resolvedName);
+        } else if (mode === 'end-only') {
+          setEndName(resolvedName);
+        } else if (mode === 'both') {
+          if (targetToUpdate === 'start') {
+            setStartName(resolvedName);
+          } else {
+            setEndName(resolvedName);
+          }
         }
-      });
-    }
-  };
-
-  const handleEndCoordChange = (lat: number, lng: number) => {
-    setEnd({ lat, lng });
-    setActivePreset(-1);
-    if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
-      reverseGeocode({ lat, lng }).then((res) => {
-        if (res) {
-          setEndName(res.name || res.displayName.split(',')[0].trim());
-          setLastClickedAddress(res.displayName);
-        }
-      });
+      }
+    } catch {
+      // keep coordinate label
+    } finally {
+      setIsGeocodingClick(false);
     }
   };
 
@@ -275,15 +225,12 @@ export const App: React.FC = () => {
   const handleProfileChange = (newProfile: TravelProfile) => {
     setProfile(newProfile);
     if (routeInfo) {
-      const norm = newProfile === 'walking' ? 'walking' : (newProfile === 'bike' || newProfile === 'cycling') ? 'bike' : 'car';
-      let durationSeconds = routeInfo.durationSeconds;
-      if (norm === 'walking') {
-        durationSeconds = Math.round(routeInfo.distanceMeters / 1.333);
-      } else if (norm === 'bike') {
-        durationSeconds = Math.round(routeInfo.distanceMeters / 5.0);
-      } else {
-        durationSeconds = Math.round((routeInfo.distanceKm / 60) * 3600);
-      }
+      const norm = normalizeTravelProfile(newProfile);
+      const durationSeconds = calculateRealisticDuration(
+        routeInfo.distanceKm,
+        routeInfo.distanceMeters,
+        norm
+      );
       setRouteInfo({
         ...routeInfo,
         profile: newProfile,
@@ -292,12 +239,6 @@ export const App: React.FC = () => {
         durationFormatted: formatDuration(durationSeconds)
       });
     }
-  };
-
-  const renderProfileIcon = (p: TravelProfile, size = 14) => {
-    if (p === 'walking') return <Footprints size={size} style={{ display: 'inline', verticalAlign: 'middle' }} />;
-    if (p === 'bike' || p === 'cycling') return <Bike size={size} style={{ display: 'inline', verticalAlign: 'middle' }} />;
-    return <Car size={size} style={{ display: 'inline', verticalAlign: 'middle' }} />;
   };
 
   const handleSwapPoints = () => {
@@ -312,15 +253,15 @@ export const App: React.FC = () => {
 
   const getCodeSnippet = () => {
     if (mode === 'map-only') {
-      return `import { Map, AddressSearch } from 'react-map-sdk';\n\nexport function MyMap() {\n  return (\n    <div>\n      <AddressSearch onSelect={(res) => console.log(res.coordinates)} />\n      <Map\n        center={{ lat: ${centerCoords.lat}, lng: ${centerCoords.lng} }}\n        zoom={${zoom}}\n        showUserLocation={true}\n        showLocateControl={true}\n        height="520px"\n      />\n    </div>\n  );\n}`;
+      return `import { Map, AddressSearch } from 'react-map-sdk';\n\nexport function MyMap() {\n  return (\n    <div>\n      <AddressSearch onSelect={(res) => console.log(res.coordinates)} />\n      <Map\n        center={{ lat: ${centerCoords.lat}, lng: ${centerCoords.lng} }}\n        zoom={${zoom}}\n        height="520px"\n      />\n    </div>\n  );\n}`;
     }
     if (mode === 'start-only') {
-      return `import { Map } from 'react-map-sdk';\n\nexport function OriginMap() {\n  return (\n    <Map\n      start={{ lat: ${start.lat}, lng: ${start.lng} }}\n      startName="${startName}"\n      showUserLocation={true}\n      showLocateControl={true}\n      height="520px"\n    />\n  );\n}`;
+      return `import { Map } from 'react-map-sdk';\n\nexport function OriginMap() {\n  return (\n    <Map\n      start={{ lat: ${start.lat}, lng: ${start.lng} }}\n      startName="${startName}"\n      draggableMarkers={true}\n      height="520px"\n    />\n  );\n}`;
     }
     if (mode === 'end-only') {
-      return `import { Map } from 'react-map-sdk';\n\nexport function DestinationMap() {\n  return (\n    <Map\n      end={{ lat: ${end.lat}, lng: ${end.lng} }}\n      endName="${endName}"\n      showUserLocation={true}\n      showLocateControl={true}\n      height="520px"\n    />\n  );\n}`;
+      return `import { Map } from 'react-map-sdk';\n\nexport function DestinationMap() {\n  return (\n    <Map\n      end={{ lat: ${end.lat}, lng: ${end.lng} }}\n      endName="${endName}"\n      draggableMarkers={true}\n      height="520px"\n    />\n  );\n}`;
     }
-    return `import { Map, AddressSearch, type RouteInfo } from 'react-map-sdk';\n\nexport function RouteOverview() {\n  return (\n    <Map\n      start={{ lat: ${start.lat}, lng: ${start.lng} }}\n      startName="${startName}"\n      end={{ lat: ${end.lat}, lng: ${end.lng} }}\n      endName="${endName}"\n      routing={${routing}}\n      routingProfile="${profile}"\n      routeColor="${routeColor}"\n      showUserLocation={true}\n      showLocateControl={true}\n      onRouteCalculated={(info: RouteInfo) => {\n        console.log('Distance:', info.distanceKm, 'km');\n        console.log('ETA:', info.durationFormatted);\n      }}\n      height="520px"\n    />\n  );\n}`;
+    return `import { Map, type RouteInfo } from 'react-map-sdk';\n\nexport function RouteOverview() {\n  return (\n    <Map\n      start={{ lat: ${start.lat}, lng: ${start.lng} }}\n      startName="${startName}"\n      end={{ lat: ${end.lat}, lng: ${end.lng} }}\n      endName="${endName}"\n      routing={${routing}}\n      routingProfile="${profile}"\n      routeColor="${routeColor}"\n      draggableMarkers={true}\n      onRouteCalculated={(info: RouteInfo) => {\n        console.log('Distance:', info.distanceKm, 'km');\n        console.log('ETA:', info.durationFormatted);\n      }}\n      height="520px"\n    />\n  );\n}`;
   };
 
   const handleCopy = () => {
@@ -331,7 +272,6 @@ export const App: React.FC = () => {
 
   return (
     <div className="minimal-app">
-      {/* Top Header */}
       <header className="top-header">
         <div className="brand-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <MapIcon size={20} color="#2563eb" />
@@ -339,35 +279,13 @@ export const App: React.FC = () => {
         </div>
       </header>
 
-      {/* Mode Switcher */}
       <div className="segmented-nav">
-        <button
-          className={`seg-btn ${mode === 'map-only' ? 'active' : ''}`}
-          onClick={() => setMode('map-only')}
-        >
-          Map & Search
-        </button>
-        <button
-          className={`seg-btn ${mode === 'start-only' ? 'active' : ''}`}
-          onClick={() => setMode('start-only')}
-        >
-          Origin (A)
-        </button>
-        <button
-          className={`seg-btn ${mode === 'end-only' ? 'active' : ''}`}
-          onClick={() => setMode('end-only')}
-        >
-          Destination (B)
-        </button>
-        <button
-          className={`seg-btn ${mode === 'both' ? 'active' : ''}`}
-          onClick={() => setMode('both')}
-        >
-          Route, ETA & Geocoding
-        </button>
+        <button className={`seg-btn ${mode === 'map-only' ? 'active' : ''}`} onClick={() => setMode('map-only')}>Map & Search</button>
+        <button className={`seg-btn ${mode === 'start-only' ? 'active' : ''}`} onClick={() => setMode('start-only')}>Origin (A)</button>
+        <button className={`seg-btn ${mode === 'end-only' ? 'active' : ''}`} onClick={() => setMode('end-only')}>Destination (B)</button>
+        <button className={`seg-btn ${mode === 'both' ? 'active' : ''}`} onClick={() => setMode('both')}>Route, ETA & Geocoding</button>
       </div>
 
-      {/* Preset Quick Chips */}
       <div className="presets-bar">
         {PRESETS.map((p, idx) => (
           <button
@@ -380,24 +298,19 @@ export const App: React.FC = () => {
         ))}
       </div>
 
-      {/* Map Card */}
       <div className="map-frame-card">
         <div className="map-floating-overlay">
           <span className="status-dot"></span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-            {mode === 'map-only' && `Zoom ${zoom} • Click to reverse geocode`}
+            {mode === 'map-only' && `Zoom ${zoom} • Click to inspect location`}
             {mode === 'start-only' && `${startName}`}
             {mode === 'end-only' && `${endName}`}
-            {mode === 'both' &&
-              (routeInfo
-                ? (
+            {mode === 'both' && (routeInfo ? (
                   <>
                     <span>{startName} → {endName} •</span>
-                    {renderProfileIcon(profile, 14)}
                     <span>{routeInfo.durationFormatted} ({routeInfo.distanceKm} km)</span>
                   </>
-                )
-                : `Next click sets ${clickTarget === 'start' ? 'Origin' : 'Destination'}`)}
+                ) : `Next click sets ${clickTarget === 'start' ? 'Origin' : 'Destination'}`)}
           </span>
         </div>
 
@@ -405,9 +318,8 @@ export const App: React.FC = () => {
           <Map
             center={centerCoords}
             zoom={zoom}
+            onZoomChange={(newZoom) => setZoom(newZoom)}
             onClick={handleMapClick}
-            showUserLocation={true}
-            showLocateControl={true}
             height="520px"
           />
         )}
@@ -415,9 +327,9 @@ export const App: React.FC = () => {
           <Map
             start={start}
             startName={startName}
+            zoom={zoom}
+            onZoomChange={(newZoom) => setZoom(newZoom)}
             onClick={handleMapClick}
-            showUserLocation={true}
-            showLocateControl={true}
             draggableMarkers={true}
             onStartDragEnd={handleStartDragEnd}
             height="520px"
@@ -427,9 +339,9 @@ export const App: React.FC = () => {
           <Map
             end={end}
             endName={endName}
+            zoom={zoom}
+            onZoomChange={(newZoom) => setZoom(newZoom)}
             onClick={handleMapClick}
-            showUserLocation={true}
-            showLocateControl={true}
             draggableMarkers={true}
             onEndDragEnd={handleEndDragEnd}
             height="520px"
@@ -445,9 +357,8 @@ export const App: React.FC = () => {
             routingProfile={profile}
             routeColor={routeColor}
             onRouteCalculated={(info) => setRouteInfo(info)}
+            onZoomChange={(newZoom) => setZoom(newZoom)}
             onClick={handleMapClick}
-            showUserLocation={true}
-            showLocateControl={true}
             draggableMarkers={true}
             onStartDragEnd={handleStartDragEnd}
             onEndDragEnd={handleEndDragEnd}
@@ -456,34 +367,26 @@ export const App: React.FC = () => {
         )}
       </div>
 
-      {/* Reverse Geocode Info Toast/Banner */}
       {lastClickedAddress && (
         <div className="reverse-geocode-banner">
           <MapPin size={18} color="#0284c7" />
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#0369a1', textTransform: 'uppercase' }}>
-              {isGeocodingClick ? 'Reverse Geocoding...' : 'Reverse Geocoded Location'}
+              {isGeocodingClick ? 'Reverse Geocoding...' : 'Selected Location Address'}
             </div>
             <div style={{ fontSize: '0.85rem', color: '#0c4a6e', fontWeight: 500 }}>
               {lastClickedAddress}
             </div>
           </div>
-          <button
-            onClick={() => setLastClickedAddress(null)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0284c7', display: 'flex', alignItems: 'center' }}
-            title="Dismiss"
-          >
-            <X size={14} />
-          </button>
+          <button onClick={() => setLastClickedAddress(null)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={14} /></button>
         </div>
       )}
 
-      {/* Minimal Unified Controls */}
       <div className="control-grid">
         {mode === 'map-only' ? (
           <div className="sub-card">
             <div className="card-title-row">
-              <span className="card-title-text">Search Address or Center</span>
+              <span className="card-title-text">Search Address or Landmark</span>
             </div>
             <div className="field-group" style={{ marginBottom: '1rem' }}>
               <label>Address Autocomplete (Zero-key Geocoding)</label>
@@ -492,30 +395,8 @@ export const App: React.FC = () => {
                 onSelect={handleCenterSelect}
               />
             </div>
-            <div className="coords-row field-group">
-              <div>
-                <label>Latitude</label>
-                <input
-                  type="number"
-                  step="0.0001"
-                  className="field-input"
-                  value={centerCoords.lat}
-                  onChange={(e) => setCenterCoords((c) => ({ ...c, lat: parseFloat(e.target.value) || 0 }))}
-                />
-              </div>
-              <div>
-                <label>Longitude</label>
-                <input
-                  type="number"
-                  step="0.0001"
-                  className="field-input"
-                  value={centerCoords.lng}
-                  onChange={(e) => setCenterCoords((c) => ({ ...c, lng: parseFloat(e.target.value) || 0 }))}
-                />
-              </div>
-            </div>
-            <div className="field-group">
-              <label>Zoom ({zoom})</label>
+            <div className="field-group" style={{ marginTop: '0.75rem' }}>
+              <label>Zoom Level ({zoom})</label>
               <input
                 type="range"
                 min="2"
@@ -528,7 +409,6 @@ export const App: React.FC = () => {
           </div>
         ) : (
           <>
-            {/* Origin & Destination Card */}
             <div className="sub-card">
               {(mode === 'start-only' || mode === 'both') && (
                 <div style={{ marginBottom: mode === 'both' ? '1.25rem' : '0' }}>
@@ -536,75 +416,15 @@ export const App: React.FC = () => {
                     <span className="card-title-text" style={{ color: '#059669', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                       <MapPin size={16} color="#059669" /> Origin (A)
                     </span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <button
-                        type="button"
-                        onClick={handleUseCurrentLocationAsOrigin}
-                        disabled={isLocatingUser}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.3rem',
-                          fontSize: '0.72rem',
-                          fontWeight: 600,
-                          color: '#047857',
-                          backgroundColor: '#ecfdf5',
-                          border: '1px solid #a7f3d0',
-                          borderRadius: '6px',
-                          padding: '3px 7px',
-                          cursor: isLocatingUser ? 'wait' : 'pointer'
-                        }}
-                        title="Set Origin to my current GPS location"
-                      >
-                        <Navigation size={12} />
-                        {isLocatingUser ? 'Locating...' : 'Use My Location'}
+                    {mode === 'both' && (
+                      <button className="target-badge-btn target-badge-emerald" onClick={() => setClickTarget('start')}>
+                        {clickTarget === 'start' && <Crosshair size={13} />} Set Target
                       </button>
-
-                      {mode === 'both' && (
-                        <button
-                          className="target-badge-btn target-badge-emerald"
-                          onClick={() => setClickTarget('start')}
-                          style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}
-                        >
-                          {clickTarget === 'start' && <Crosshair size={13} />}
-                          {clickTarget === 'start' ? 'Active Click Target' : 'Set Target'}
-                        </button>
-                      )}
-                    </div>
+                    )}
                   </div>
-                  <div className="field-group">
-                    <label>Search Address (Geocoding)</label>
-                    <AddressSearch
-                      placeholder="Search origin address or landmark..."
-                      onSelect={handleStartSelect}
-                      initialValue={startName}
-                    />
-                  </div>
-                  <div className="coords-row field-group">
-                    <div>
-                      <label>Lat</label>
-                      <input
-                        type="number"
-                        step="0.0001"
-                        className="field-input"
-                        value={start.lat}
-                        onChange={(e) => handleStartCoordChange(parseFloat(e.target.value) || 0, start.lng)}
-                      />
-                    </div>
-                    <div>
-                      <label>Lng</label>
-                      <input
-                        type="number"
-                        step="0.0001"
-                        className="field-input"
-                        value={start.lng}
-                        onChange={(e) => handleStartCoordChange(start.lat, parseFloat(e.target.value) || 0)}
-                      />
-                    </div>
-                  </div>
+                  <AddressSearch placeholder="Search origin..." onSelect={handleStartSelect} initialValue={startName} />
                 </div>
               )}
-
               {(mode === 'end-only' || mode === 'both') && (
                 <div>
                   <div className="card-title-row">
@@ -612,58 +432,18 @@ export const App: React.FC = () => {
                       <Flag size={16} color="#e11d48" /> Destination (B)
                     </span>
                     {mode === 'both' && (
-                      <button
-                        className="target-badge-btn target-badge-rose"
-                        onClick={() => setClickTarget('end')}
-                        style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}
-                      >
-                        {clickTarget === 'end' && <Crosshair size={13} />}
-                        {clickTarget === 'end' ? 'Active Click Target' : 'Set Click Target'}
+                      <button className="target-badge-btn target-badge-rose" onClick={() => setClickTarget('end')}>
+                        {clickTarget === 'end' && <Crosshair size={13} />} Set Target
                       </button>
                     )}
                   </div>
-                  <div className="field-group">
-                    <label>Search Address (Geocoding)</label>
-                    <AddressSearch
-                      placeholder="Search destination address or landmark..."
-                      onSelect={handleEndSelect}
-                      initialValue={endName}
-                    />
-                  </div>
-                  <div className="coords-row field-group">
-                    <div>
-                      <label>Lat</label>
-                      <input
-                        type="number"
-                        step="0.0001"
-                        className="field-input"
-                        value={end.lat}
-                        onChange={(e) => handleEndCoordChange(parseFloat(e.target.value) || 0, end.lng)}
-                      />
-                    </div>
-                    <div>
-                      <label>Lng</label>
-                      <input
-                        type="number"
-                        step="0.0001"
-                        className="field-input"
-                        value={end.lng}
-                        onChange={(e) => handleEndCoordChange(end.lat, parseFloat(e.target.value) || 0)}
-                      />
-                    </div>
-                  </div>
+                  <AddressSearch placeholder="Search destination..." onSelect={handleEndSelect} initialValue={endName} />
                 </div>
               )}
             </div>
-
-            {/* Route & ETA Panel */}
             {mode === 'both' && (
               <div className="sub-card">
-                <div className="card-title-row">
-                  <span className="card-title-text">Route & ETA</span>
-                </div>
-
-                {/* Travel Profile Selector (Placed at top of panel) */}
+                <div className="card-title-row"><span className="card-title-text">Route & ETA</span></div>
                 <div className="profile-btn-group">
                   <button
                     className={`profile-btn ${profile === 'car' || profile === 'driving' ? 'active' : ''}`}
@@ -704,7 +484,7 @@ export const App: React.FC = () => {
                   }}>
                     <Plane size={16} color="#b45309" />
                     <div>
-                      <b>Direct Great-Circle Path:</b> No continuous overland road route exists between these locations (e.g. crossing oceans or non-routable terrain).
+                      <b>Direct Great-Circle Path:</b> No continuous overland road route exists between these locations.
                     </div>
                   </div>
                 )}

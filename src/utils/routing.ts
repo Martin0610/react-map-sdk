@@ -27,6 +27,56 @@ export function normalizeTravelProfile(
 }
 
 /**
+ * Calculates a realistic ETA duration in seconds considering real-world road traffic,
+ * traffic signals, urban speed limits, and travel profiles.
+ */
+export function calculateRealisticDuration(
+  distanceKm: number,
+  distanceMeters: number,
+  profile: 'car' | 'bike' | 'walking',
+  osrmRawDuration?: number
+): number {
+  if (profile === 'walking') {
+    // Average realistic walking speed: 4.5 km/h = 1.25 m/s
+    return Math.round(distanceMeters / 1.25);
+  }
+  if (profile === 'bike') {
+    // Average realistic cycling speed: 15 km/h = 4.16 m/s
+    return Math.round(distanceMeters / 4.16);
+  }
+
+  // Realistic Driving Speed Model (accounts for urban traffic, signals, road conditions):
+  // - City / Short distance (<= 10 km): ~28 km/h average
+  // - Suburban / Medium distance (10 - 35 km): ~38 km/h average (e.g. 30 km = ~47 min)
+  // - Regional / Intercity (35 - 100 km): ~50 km/h average
+  // - Long-distance Highway (> 100 km): ~65 km/h average
+  let avgSpeedKmh: number;
+  if (distanceKm <= 10) {
+    avgSpeedKmh = 28;
+  } else if (distanceKm <= 35) {
+    avgSpeedKmh = 38;
+  } else if (distanceKm <= 100) {
+    avgSpeedKmh = 50;
+  } else {
+    avgSpeedKmh = 65;
+  }
+
+  const modelDuration = Math.round((distanceKm / avgSpeedKmh) * 3600);
+
+  // If OSRM raw duration is available, blend it with realistic traffic weighting
+  if (osrmRawDuration && osrmRawDuration > 0) {
+    const osrmSpeed = distanceKm / (osrmRawDuration / 3600);
+    // If OSRM assumed free-flow unadjusted speed, scale realistically
+    if (osrmSpeed > avgSpeedKmh) {
+      return Math.round(Math.max(osrmRawDuration * 1.5, modelDuration));
+    }
+    return Math.round(Math.max(osrmRawDuration * 1.15, modelDuration * 0.9));
+  }
+
+  return modelDuration;
+}
+
+/**
  * Fetches turn-by-turn road geometry tailored to the travel profile (Car, Bike, Walking).
  * 100% free with zero API keys required.
  *
@@ -113,15 +163,13 @@ export async function fetchRoadRoute(
       const distanceMeters = primaryRoute.distance + startDistToRoad + endDistToRoad;
       const distanceKm = parseFloat((distanceMeters / 1000).toFixed(1));
 
-      // Calculate realistic duration based on actual profile speeds
-      let durationSeconds = primaryRoute.duration;
-      if (normProfile === 'walking') {
-        // Average walking speed: 4.8 km/h = 1.333 m/s
-        durationSeconds = Math.round(distanceMeters / 1.333);
-      } else if (normProfile === 'bike') {
-        // Average city bike speed: 18 km/h = 5.0 m/s
-        durationSeconds = Math.round(distanceMeters / 5.0);
-      }
+      // Calculate realistic ETA duration
+      const durationSeconds = calculateRealisticDuration(
+        distanceKm,
+        distanceMeters,
+        normProfile,
+        primaryRoute.duration
+      );
 
       const durationMinutes = Math.round(durationSeconds / 60);
       const durationFormatted = formatDuration(durationSeconds);
@@ -149,12 +197,11 @@ export async function fetchRoadRoute(
   const directDistanceMeters = calculateDirectDistance(start, end);
   const distanceKm = parseFloat((directDistanceMeters / 1000).toFixed(1));
 
-  let durationSeconds = Math.round((distanceKm / 60) * 3600); // approx 60 km/h driving
-  if (normProfile === 'walking') {
-    durationSeconds = Math.round(directDistanceMeters / 1.333);
-  } else if (normProfile === 'bike') {
-    durationSeconds = Math.round(directDistanceMeters / 5.0);
-  }
+  const durationSeconds = calculateRealisticDuration(
+    distanceKm,
+    directDistanceMeters,
+    normProfile
+  );
 
   const geodesicCoordinates = interpolateGreatCircle(start, end, 64);
 

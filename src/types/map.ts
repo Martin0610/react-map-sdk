@@ -15,6 +15,20 @@ export interface Coordinates {
 }
 
 /**
+ * Live geolocation result with accuracy and source details.
+ */
+export interface LiveLocationResult extends Coordinates {
+  /**
+   * Accuracy radius in meters (from HTML5 Geolocation or IP fallback).
+   */
+  accuracy?: number;
+  /**
+   * Geolocation source ('gps' or 'ip').
+   */
+  source?: 'gps' | 'ip';
+}
+
+/**
  * Supported travel modes for road routing.
  */
 export type TravelProfile = 'driving' | 'car' | 'bike' | 'cycling' | 'walking';
@@ -226,6 +240,11 @@ export interface MapProps {
   onClick?: (coords: Coordinates) => void;
 
   /**
+   * Optional callback fired when the map zoom level changes (via mouse wheel, pinch, buttons, or double-click).
+   */
+  onZoomChange?: (zoom: number) => void;
+
+  /**
    * Optional callback when the map is initialized and ready.
    */
   onMapReady?: (mapInstance: unknown) => void;
@@ -273,7 +292,7 @@ export interface MapProps {
   /**
    * Callback fired when the user's live GPS coordinates are detected or updated.
    */
-  onUserLocationChange?: (coords: Coordinates) => void;
+  onUserLocationChange?: (coords: LiveLocationResult) => void;
 
   /**
    * Whether map marker pins can be dragged interactively to adjust location.

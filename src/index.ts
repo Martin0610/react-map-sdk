@@ -9,6 +9,7 @@ export type {
   Coordinates,
   GeocodeOptions,
   GeocodeResult,
+  LiveLocationResult,
   MapProps,
   ReverseGeocodeOptions,
   RouteInfo,
@@ -41,6 +42,7 @@ export {
 export {
   fetchRoadRoute,
   calculateDirectDistance,
+  calculateRealisticDuration,
   interpolateGreatCircle,
   normalizeTravelProfile,
   formatDuration
@@ -54,6 +56,8 @@ export {
 export {
   getCurrentLocation,
   watchLiveLocation,
+  getCachedLocation,
+  setCachedLocation,
   createUserLocationPinSvg,
   getUserLocationDivIcon
 } from './utils/geolocation';
