@@ -36,8 +36,16 @@
     "typescript",
     "sdk"
   ],
-  "author": "",
+  "author": "Martin0610",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Martin0610/react-map-sdk.git"
+  },
+  "homepage": "https://github.com/Martin0610/react-map-sdk#readme",
+  "bugs": {
+    "url": "https://github.com/Martin0610/react-map-sdk/issues"
+  },
   "peerDependencies": {
     "react": ">=16.8.0 || >=17.0.0 || >=18.0.0 || >=19.0.0",
     "react-dom": ">=16.8.0 || >=17.0.0 || >=18.0.0 || >=19.0.0"
