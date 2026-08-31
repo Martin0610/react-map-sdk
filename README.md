@@ -6,11 +6,12 @@ A lightweight, enterprise-grade React Map SDK built with **TypeScript**, **Leafl
 
 Integrate interactive maps, turn-by-turn road routing, realistic ETA calculation, address autocomplete, and reverse geocoding with a single declarative React component — **100% free with zero API keys required**.
 
-[![npm version](https://img.shields.io/npm/v/react-map-sdk.svg?color=blue)](https://www.npmjs.com/package/react-map-sdk)
-[![npm downloads](https://img.shields.io/npm/dt/react-map-sdk.svg?color=success)](https://www.npmjs.com/package/react-map-sdk)
+[![npm version](https://img.shields.io/badge/npm-v1.0.0-blue.svg)](https://www.npmjs.com/package/react-map-sdk)
 [![TypeScript](https://img.shields.io/badge/TypeScript-100%25-blue.svg)](https://www.typescriptlang.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Bundle Size](https://img.shields.io/bundlephobia/minzip/react-map-sdk)](https://bundlephobia.com/package/react-map-sdk)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![API Keys](https://img.shields.io/badge/API%20Keys-Zero%20Required-brightgreen.svg)](https://github.com/Martin0610/react-map-sdk)
+[![Leaflet](https://img.shields.io/badge/Leaflet-v1.9.4-199900.svg)](https://leafletjs.com/)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/Martin0610/react-map-sdk/pulls)
 
 </div>
 
