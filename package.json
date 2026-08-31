@@ -1,6 +1,6 @@
 {
   "name": "react-map-sdk",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A lightweight, reusable React Map SDK built with TypeScript, Leaflet, and OpenStreetMap.",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
