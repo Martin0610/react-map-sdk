@@ -1,4 +1,4 @@
-# 🗺️ React Map SDK
+# <img src="https://api.iconify.design/lucide:map.svg?color=%232563eb" width="28" height="28" align="absmiddle" /> React Map SDK
 
 <div align="center">
 
@@ -17,25 +17,25 @@ Integrate interactive maps, turn-by-turn road routing, realistic ETA calculation
 
 ---
 
-## ⚡ Key Features
+## <img src="https://api.iconify.design/lucide:sparkles.svg?color=%232563eb" width="22" height="22" align="absmiddle" /> Key Features
 
 | Feature | Description |
 | :--- | :--- |
-| 🗺️ **Zero-Config Map** | Instant OpenStreetMap tile rendering with zero API keys, billing accounts, or setup friction. |
-| 🚗 **Turn-by-Turn Road Routing** | Real road trajectory polylines powered by high-performance OSRM routing. |
-| ⏱️ **Realistic Traffic ETA** | Intelligent speed weighting for City ($\sim 28\text{ km/h}$), Suburban ($\sim 38\text{ km/h}$), and Highway ($\sim 65\text{ km/h}$) routes. |
-| 🔍 **Address Autocomplete** | Embedded `<AddressSearch />` geocoding bar for instant landmark and place searches. |
-| 📍 **Reverse Geocoding** | Automatically resolve `{ lat, lng }` coordinates into formatted street addresses and city names. |
-| 🎯 **Draggable Marker Pins** | Custom SVG Emerald (Point A) and Rose (Point B) pins with real-time drag handlers. |
-| 🔍 **Bidirectional Zoom Sync** | `onZoomChange` event listener syncs mouse wheel, trackpad pinch, and `+`/`-` buttons in real time. |
-| 🚶 **Multi-Modal Travel** | Seamlessly switch between **Car / Driving**, **Bike / Cycling**, and **Walking** modes. |
-| 📐 **Auto Bounds & Centering** | Automatically calculates the optimal bounding box, zoom level, and padding for routes. |
-| 🛡️ **Coordinate Validation** | Strict input boundary checking prevents silent rendering bugs. |
-| ⚡ **SSR Safe** | Fully compatible with Next.js (App & Pages Routers), Remix, Vite, and Create React App. |
+| <img src="https://api.iconify.design/lucide:map.svg?color=%232563eb" width="16" height="16" align="absmiddle" /> **Zero-Config Map** | Instant OpenStreetMap tile rendering with zero API keys, billing accounts, or setup friction. |
+| <img src="https://api.iconify.design/lucide:route.svg?color=%232563eb" width="16" height="16" align="absmiddle" /> **Turn-by-Turn Road Routing** | Real road trajectory polylines powered by high-performance OSRM routing. |
+| <img src="https://api.iconify.design/lucide:clock.svg?color=%232563eb" width="16" height="16" align="absmiddle" /> **Realistic Traffic ETA** | Intelligent speed weighting for City ($\sim 28\text{ km/h}$), Suburban ($\sim 38\text{ km/h}$), and Highway ($\sim 65\text{ km/h}$) routes. |
+| <img src="https://api.iconify.design/lucide:search.svg?color=%232563eb" width="16" height="16" align="absmiddle" /> **Address Autocomplete** | Embedded `<AddressSearch />` geocoding bar for instant landmark and place searches. |
+| <img src="https://api.iconify.design/lucide:map-pin.svg?color=%232563eb" width="16" height="16" align="absmiddle" /> **Reverse Geocoding** | Automatically resolve `{ lat, lng }` coordinates into formatted street addresses and city names. |
+| <img src="https://api.iconify.design/lucide:crosshair.svg?color=%232563eb" width="16" height="16" align="absmiddle" /> **Draggable Marker Pins** | Custom SVG Emerald (Point A) and Rose (Point B) pins with real-time drag handlers. |
+| <img src="https://api.iconify.design/lucide:zoom-in.svg?color=%232563eb" width="16" height="16" align="absmiddle" /> **Bidirectional Zoom Sync** | `onZoomChange` event listener syncs mouse wheel, trackpad pinch, and `+`/`-` buttons in real time. |
+| <img src="https://api.iconify.design/lucide:car.svg?color=%232563eb" width="16" height="16" align="absmiddle" /> **Multi-Modal Travel** | Seamlessly switch between **Car / Driving**, **Bike / Cycling**, and **Walking** modes. |
+| <img src="https://api.iconify.design/lucide:maximize-2.svg?color=%232563eb" width="16" height="16" align="absmiddle" /> **Auto Bounds & Centering** | Automatically calculates the optimal bounding box, zoom level, and padding for routes. |
+| <img src="https://api.iconify.design/lucide:shield-check.svg?color=%232563eb" width="16" height="16" align="absmiddle" /> **Coordinate Validation** | Strict input boundary checking prevents silent rendering bugs. |
+| <img src="https://api.iconify.design/lucide:zap.svg?color=%232563eb" width="16" height="16" align="absmiddle" /> **SSR Safe** | Fully compatible with Next.js (App & Pages Routers), Remix, Vite, and Create React App. |
 
 ---
 
-## 📦 Installation
+## <img src="https://api.iconify.design/lucide:package.svg?color=%232563eb" width="22" height="22" align="absmiddle" /> Installation
 
 ```bash
 npm install react-map-sdk leaflet
@@ -55,7 +55,7 @@ pnpm add react-map-sdk leaflet
 
 ---
 
-## 🚀 Quick Start Examples
+## <img src="https://api.iconify.design/lucide:rocket.svg?color=%232563eb" width="22" height="22" align="absmiddle" /> Quick Start Examples
 
 ### 1. Road Routing with Realistic ETA
 
@@ -135,7 +135,7 @@ console.log(place?.displayName); // "Chennai Central, Poonamallee High Road, Che
 
 ---
 
-## 🛠️ API Reference
+## <img src="https://api.iconify.design/lucide:wrench.svg?color=%232563eb" width="22" height="22" align="absmiddle" /> API Reference
 
 ### `<Map />` (`MapProps`)
 
@@ -174,7 +174,7 @@ console.log(place?.displayName); // "Chennai Central, Poonamallee High Road, Che
 
 ---
 
-## 🔷 TypeScript Types
+## <img src="https://api.iconify.design/lucide:file-code.svg?color=%232563eb" width="22" height="22" align="absmiddle" /> TypeScript Types
 
 ```ts
 import type {
@@ -191,7 +191,7 @@ import type {
 
 ---
 
-## 🌐 Next.js & SSR Compatibility
+## <img src="https://api.iconify.design/lucide:globe.svg?color=%232563eb" width="22" height="22" align="absmiddle" /> Next.js & SSR Compatibility
 
 `react-map-sdk` is built to run seamlessly in Server-Side Rendered (SSR) environments including **Next.js 13/14/15 (App & Pages router)**, **Remix**, and **Vite**.
 
@@ -217,7 +217,7 @@ export default function DeliveryPage() {
 
 ---
 
-## 💻 Local Development
+## <img src="https://api.iconify.design/lucide:terminal.svg?color=%232563eb" width="22" height="22" align="absmiddle" /> Local Development
 
 ```bash
 # 1. Install dependencies
@@ -235,7 +235,7 @@ npm --prefix example run dev
 
 ---
 
-## 📄 License
+## <img src="https://api.iconify.design/lucide:file-text.svg?color=%232563eb" width="22" height="22" align="absmiddle" /> License
 
 MIT © 2026 Martin0610
 
